@@ -1,0 +1,6 @@
+__pycache__/
+generated_text/
+languages/
+output/
+raw_data/
+rules/
