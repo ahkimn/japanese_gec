@@ -34,7 +34,6 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
         sub_rule_counts (arr): Array containing number of sub-rules per each rule
         pair_counts (arr): Array of arrays containing number of sentence pairs per each sub-rule
     """
-
     data_files = list()
     sub_rule_counts = list()
     pair_counts = list()
@@ -115,7 +114,6 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
         full_validation (arr): Pairs of sentences for validation set (aggregate)
         full_test (arr): Piars of sentences for test set (aggregate)
     """
-
     n_rules = len(rule_counts)
 
     # Array containing set of rules (numbers) that pass the max/min criterion
@@ -192,7 +190,6 @@ def sample_from_csv(file_path, count, validation_ratio, max_total=5000):
         d_validation (arr): Sampled sentences for the validation set
         d_test (arr): Sampled sentences for the test set
     """
-
     with open(file_path, "r") as f:
 
         csv_reader = csv.reader(f)
@@ -221,7 +218,6 @@ def representative_sample(counts, max_total):
     Returns:
         sample_counts (arr): Number of sentence pairs per sub-rule to be sampled
     """
-
     n_subrules = len(counts)   
     sample_counts = [0] * n_subrules    
 

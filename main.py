@@ -1,10 +1,11 @@
 from src import load
-from src import configx
+from src import languages
 
 
 def main():
 
-	load.save_dataset()
+	languages.load_default_languages()
+	# load.save_dataset()
 
 	
 

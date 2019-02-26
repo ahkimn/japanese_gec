@@ -1,13 +1,52 @@
+# Filename: load.py
+# Author: Alex Kimn
+# E-mail: alex.kimn@outlook.com
+# Date Created: 11/06/2018
+# Date Last Modified: 26/02/2019
+# Python Version: 3.7
+
+'''
+Language class and related functions - for converting string representations of tokens/part-of-speech tags
+to integer values (and vice-versa)
+'''
+
 import pickle
 import os
 
 from . import configx
 
-# Language class used to determine mapping between unique tokens and integer values
 class Language:
+    """
+    Class used to determine mapping between unique nodes (tokens or parts-of-speech) and integers
+    
+    Attributes:
+        count (int): Total number of nodes processed
+        index_node (dict): Dictionary mapping integers (indices) to strings (nodes)
+        n_nodes (int): Number of unique nodes recognized by the Language instance
+        n_preserve (int): Number of default nodes (i.e. pad) to retain before adding actual nodes
+        node_count (dict): Dictionary mapping strings (nodes) to their recorded frequency
+        node_index (dict): Dictionary mapping strings (nodes) to integers (indices)
+        pad_index (int): Integer value representation of padding (default = 0)
+        pad_token (str): String representation of padding (default = 'PAD')
+        start_index (int): Integer value representation of the start token (default = 2)
+        start_token (str): String representation of the start token (default = 'START')
+        stop_index (int): Integer value representation of the stop token (default = 3)
+        stop_token (str): String representation of the stop token (default = '。')
+        unknown_index (int): Integer value representation of unknown tokens (default = 1)
+        unknown_token (str): String representation of unknown tokens (default = 'UNKNOWN')
+        use_delimiter (bool, optional): Determines whether or not Language nodes are tokens  (which utilize '。' as sentence delimiters)
+                                  or part-of-speech tags (which do not)
+    """
+    
 
     def __init__(self, use_delimiter=False):
-
+        """
+        Constructor
+        
+        Args:
+            use_delimiter (bool, optional): Determines whether or not Language nodes are tokens  (which utilize '。' as sentence delimiters)
+                                                or part-of-speech tags (which do not)
+        """
         self.use_delimiter = use_delimiter
 
         self.pad_token = configx.CONST_PAD_TOKEN
@@ -16,14 +55,17 @@ class Language:
         self.unknown_token = configx.CONST_UNKNOWN_TOKEN
         self.unknown_index = configx.CONST_UNKNOWN_INDEX
 
+        # If nodes represent tokens
         if self.use_delimiter:
 
+            # Use default values of start and stop tokens
             self.start_token = configx.CONST_SENTENCE_START_TOKEN
             self.start_index = configx.CONST_SENTENCE_START_INDEX
 
             self.stop_token = configx.CONST_SENTENCE_DELIMITER_TOKEN
             self.stop_index = configx.CONST_SENTENCE_DELIMITER_INDEX
 
+            # Initialize dictionary mappings with default tokens
             self.node_index = {self.pad_token: self.pad_index,
                                self.unknown_token: self.unknown_index,
                                self.start_token: self.start_index, 
@@ -39,8 +81,11 @@ class Language:
                                self.start_index: self.start_token, 
                                self.stop_index: self.stop_token}
 
+        # Otherwise, if nodes are part-of-speech tags
         else:
 
+            # Initialize dictionary mappings with asterisk to represent unused (padded) nodes
+            # Start and stop indices are not included (as they are not part-of-speech tags)
             self.node_index = {'*': self.pad_index, self.unknown_token: self.unknown_index}
             self.node_count = {'*': 0, self.unknown_token:0}
             self.index_node = {self.pad_index: '*', self.unknown_index: self.unknown_token}
@@ -50,8 +95,14 @@ class Language:
         self.n_nodes = len(self.index_node.keys())
         self.count = 0
 
-    def load_dicts(self, prefix):
 
+    def load_dicts(self, prefix):
+        """
+        Load a Language instance from disk
+        
+        Args:
+            prefix (str): Language save prefix string
+        """
         self.node_index = pickle.load(open("_".join((prefix, "ni.pkl")), 'rb'))
         self.node_count = pickle.load(open("_".join((prefix, "nc.pkl")), 'rb'))
         self.index_node = pickle.load(open("_".join((prefix, "in.pkl")), 'rb'))
@@ -59,24 +110,43 @@ class Language:
         self.n_nodes = len(self.index_node.keys())
         self.count = sum(list(self.node_count[i] for i in self.node_count.keys()))
 
-    def save_dicts(self, prefix):
 
+    def save_dicts(self, prefix):
+        """
+        Save a Language instance to disk
+        
+        Args:
+            prefix (str): Language save prefix string
+        """
         self.sort()
 
         pickle.dump(self.node_index, open("_".join((prefix, "ni.pkl")), 'wb'))
         pickle.dump(self.node_count, open("_".join((prefix, "nc.pkl")), 'wb'))
         pickle.dump(self.index_node, open("_".join((prefix, "in.pkl")), 'wb'))
 
-    def add_sentence(self, nodes):
 
+    def add_sentence(self, nodes):
+        """
+        Add a list of nodes to the dictionary
+        
+        Args:
+            nodes (arr): List of nodes
+        """
         for node in nodes:
 
             self.add_node(node)
 
-    def add_node(self, node):
 
+    def add_node(self, node):
+        """
+        Add a single node to the dictionary
+        
+        Args:
+            node (str): Single node (token or part-of-speech)
+        """
         self.count += 1
 
+        # If node has not previously been seen
         if node not in self.node_index:
 
             self.node_index[node] = self.n_nodes
@@ -86,16 +156,30 @@ class Language:
 
             self.n_nodes += 1
 
+        # Do not increment default nodes
         elif self.node_index[node] < self.n_preserve:
 
             pass
 
+        # If previously extant, update frequency of node
         else:
 
             self.node_count[node] += 1
 
-    def parse_indices(self, indices, n_max=-1, delimiter=','):
 
+    def parse_indices(self, indices, n_max=-1, delimiter=','):
+        """
+        Parse list of integer indices into string representation, separated by a delimiter
+        
+        Args:
+            indices (arr): List of integers corresponding to node indices
+            n_max (int, optional): Maximal integer value to output normally, all indices exceeding this value are outputted 
+                                   as self.unknown_token (default = 'UNKNOWN')
+            delimiter (str, optional): Delimiter used to separate individual nodes in output
+        
+        Returns:
+            ret (str): String composed of nodes corresponding to input indices, delimited by the delimiter parameter
+        """
         ret = ""
 
         if n_max > 0:
@@ -122,16 +206,34 @@ class Language:
 
         return ret
 
+
     def sentence_from_indices(self, indices, n_max=-1):
+        """
+        Parse list of integer indices into string representation without delimiters
+        
+        Args:
+            indices (arr): List of integers corresponding to node indices
+            n_max (int, optional): Maximal integer value to output normally, all indices exceeding this value are outputted 
+                                   as self.unknown_token (default = 'UNKNOWN')
+        
+        Returns:
+            ret (str): String composed of nodes corresponding to input indices, delimited by the delimiter parameter
+        """
+        return self.parse_indices(indices, n_max, delimiter="")
 
-        ret = self.parse_indices(indices, n_max)
-
-        ret = "".join(ret.split(','))
-
-        return ret
 
     def parse_sentence(self, nodes, n_max=-1):
-
+        """
+        Convert a list of nodes into a list of indices
+        
+        Args:
+            nodes (arr): List of strings (nodes)
+            n_max (int, optional): Maximal index to convert normally, all nodes with indices exceeding this value are outputted 
+                                   as self.unknown_index (default = 1)        
+        
+        Returns:
+            ret (arr): List of integers (indices)
+        """
         ret = []
 
         if n_max > 0:
@@ -156,8 +258,15 @@ class Language:
 
         return ret
 
-    def decode_file(self, f_in, f_out):
 
+    def decode_file(self, f_in, f_out):
+        """
+        Convert integer-encoded data file into equivalent text file
+        
+        Args:
+            f_in (str): Path to input (encoded) file
+            f_out (str): Path to output (decoded) file
+        """
         data = f_in.readlines()
 
         for j in range(len(data)):
@@ -166,6 +275,7 @@ class Language:
 
             for k in range(len(line_in)):
 
+                # Process artifacts from fairseq Lua origins
                 if '<Lua' in line_in[k]:
 
                     line_in[k] = self.unknown_index
@@ -185,8 +295,19 @@ class Language:
             line_out = self.sentence_from_indices(line_in)
             f_out.write(line_out + os.linesep)
 
-    def parse_node(self, node, n_max=-1):
 
+    def parse_node(self, node, n_max=-1):
+        """
+        Convert single node to index, given an upper limit of indices
+        
+        Args:
+            node (str): Input node
+            n_max (int, optional): Maximum allowable index; any node with index above this value is outputted as 
+                                    self.unknown_index (default = 1)
+        
+        Returns:
+            (int): Corresponding index
+        """
         if n_max > 0:
 
             n_max = min(n_max, self.n_nodes)
@@ -204,8 +325,19 @@ class Language:
         else:
             return self.unknown_index
 
-    def parse_index(self, index, n_max=-1):
 
+    def parse_index(self, index, n_max=-1):
+        """
+        Convert single index to its corresponding node, given an upper limit of indices
+        
+        Args:
+            node (int): Input index
+            n_max (int, optional): Maximum allowable index; any index above this value is outputted as 
+                                    self.unknown_token (default = 'UNKNOWN')
+        
+        Returns:
+            (str): Corresponding node
+        """
         if n_max > 0:
 
             n_max = min(n_max, self.n_nodes)
@@ -224,13 +356,12 @@ class Language:
             return self.unknown_token   
 
     def sort(self):
-
+        """
+        Refresh order of dictionaries, so that nodes are ordered in terms of decreasing frequency
+        (i.e. node with index = self.n_preserve + 1 is most frequent)
+        """
         temp = sorted(self.node_count.items(), key=lambda item: item[1])[self.n_preserve:]
         temp = temp[::-1]
-
-        # print("\tNumber of processed nodes: " + str(self.count))
-        # print("\tMost common nodes: " + str(temp[:min(len(temp), 100)]))
-        # print(list(self.index_node[i] for i in range(10)))
 
         assert(len(temp) == self.n_nodes - self.n_preserve)
 
@@ -241,9 +372,17 @@ class Language:
             self.node_index[node] = i + self.n_preserve
 
 
-''' Function to extract part-of-speech as well as conjugation information from Mecab classification'''
 def resolve_classification(classification):
-
+    """
+    Function to output relevant part-of-speech tags from a MeCab.Tagger()'s output
+    
+    Args:
+        classification (arr): List of features from a MeCab.Tagger() 
+    
+    Returns:
+        (tuple): Tuple of features containing only the major and first sub-division of part-of-speech,
+                 as well as form features 
+    """
     # Part of speech tags
     class1 = classification[0]
     class2 = classification[1]
@@ -255,12 +394,20 @@ def resolve_classification(classification):
 
     return (class1, class2, form1, form2, form3)
 
-''' Function to parse an input sentence using a Mecab tagger
 
-        :returns: list of string containing nodes; list of tuples of part-of-speech tags
-'''
-def parse_sentence(sentence, tagger, delimiter, remove_periods=False):
-
+def parse_sentence(sentence, tagger, delimiter, remove_delimiter = False):
+    """
+    Function to parse a given raw string into integer indices using a given Mecab.Tagger() and Language class instance
+    
+    Args:
+        sentence (str): Input string
+        tagger (Language): Language class instance used to index individual tokens
+        delimiter (str): Sentence end delimiter (i.e. period) 
+        remove_delimiter (bool, optional): Determines whether or not the delimiter token is retained in output
+    
+    Returns:
+        TYPE: Description
+    """
     nodes = list()
     pos = [list(), list(), list(), list(), list()]
 
@@ -276,7 +423,7 @@ def parse_sentence(sentence, tagger, delimiter, remove_periods=False):
 
         len_parsed += len(res.surface)
         
-        if res.surface != '' and not (res.surface == delimiter and remove_periods == True):
+        if res.surface != '' and not (res.surface == delimiter and remove_delimiter == True):
 
             c = res.feature.split(",")
             c = resolve_classification(c)  
@@ -293,10 +440,23 @@ def parse_sentence(sentence, tagger, delimiter, remove_periods=False):
 
     return nodes, pos
 
-def load_default_languages(load_dir=configx.CONST_DEFAULT_LANGUAGE_DIRECTORY, 
-                           node_save_prefix=configx.CONST_NODE_PREFIX, 
-                           pos_save_prefix=configx.CONST_POS_PREFIX):
 
+def load_default_languages(load_dir = configx.CONST_DEFAULT_LANGUAGE_DIRECTORY, 
+                           node_save_prefix = configx.CONST_NODE_PREFIX, 
+                           pos_save_prefix = configx.CONST_POS_PREFIX):
+    """
+    Function to load the Language set defaulted by the configx.py configuration file
+    Contains one token tagger as well as five part-of-speech taggers
+    
+    Args:
+        load_dir (str, optional): Path to directory containing the Language
+        node_save_prefix (str, optional): Prefix used for saving the Language tagging tokens
+        pos_save_prefix (str, optional): Prefix used for saving the Languages outputting part-of-speech tags
+    
+    Returns:
+        token_tagger (Language): Language instance for converting tokens from MeCab output
+        pos_taggers (arr): Array of Language instances for converting part-of-speech tags from MeCab output
+    """
     token_tagger = Language(True)
     pos_taggers = [Language(), Language(), Language(), Language(), Language(True)]
 
@@ -318,10 +478,3 @@ def load_default_languages(load_dir=configx.CONST_DEFAULT_LANGUAGE_DIRECTORY,
     # print('\n========================================================\n')
 
     return token_tagger, pos_taggers
-
-
-if __name__ == '__main__':
-
-    load_default_languages()
-
-    pass
