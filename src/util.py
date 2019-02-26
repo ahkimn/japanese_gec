@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 def last(arr, low, high, x, n) :
 
@@ -80,4 +81,26 @@ def check_matched_indices(pos, indices, check, used_tags, perm, n):
         counts.append(count)
 
     return matches, counts
+
+def mkdir_p(path):
+    """    
+    Function to recursively generate directories
+
+    Args:
+        path (str): relative pathway to recursively generate
+    """
+    try:
+
+        os.makedirs(path)
+
+    except OSError as exc:
+
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+
+            pass
+
+        else:
+
+            raise
+
 

@@ -4,7 +4,7 @@ from src import configx
 
 def main():
 
-	load.generate_languages_from_data()
+	load.save_dataset()
 
 	
 

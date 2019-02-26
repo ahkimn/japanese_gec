@@ -13,21 +13,21 @@ BREAK_LINE = "==========================================================\n"
 '''
 Specific directories
 '''
-CONST_DATABASE_DIRECTORY = "database"
-CONST_SEARCH_DATABASE_DIRECTORY = "search"
+CONST_DATABASE_DIRECTORY = "raw_data"
+CONST_SEARCH_DATABASE_DIRECTORY = "raw_data"
 CONST_RULE_CONFIG_DIRECTORY = "rules"
 
 # Folder to store text file outputs
 CONST_TEXT_OUTPUT_DIRECTORY = "generated_text"
-# Essentially the name of the directory (within /CONST_TEXT_OUTPUT_DIRECTORY)
-CONST_TEXT_OUTPUT_PREFIX = "init"
+# Essentially the name of the dataset (within /CONST_TEXT_OUTPUT_DIRECTORY)
+CONST_TEXT_OUTPUT_PREFIX = "d_15"
+# Output folder of dataset corpus within CONST
+CONST_CORPUS_SAVE_DIRECTORY = "init_15"
 
 # Prefix/Suffix for each text file (within /CONST_TEXT_OUTPUT_DIRECTORY/CONST_TEXT_OUTPUT_PREFIX)
 CONST_SENTENCE_FILE_PREFIX = "type"
 CONST_SENTENCE_FILE_SUFFIX = ".txt"
 
-# Default location of corpus files within dataset
-CONST_CORPUS_SAVE_DIRECTORY = "corpus"
 
 CONST_ERRORED_PREFIX = "error"
 CONST_CORRECT_PREFIX = "correct"
