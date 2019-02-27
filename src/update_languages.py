@@ -1,4 +1,4 @@
-# Filename: load.py
+# Filename: update_languages.py
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 26/02/2019

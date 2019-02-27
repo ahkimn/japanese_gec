@@ -1,4 +1,4 @@
-# Filename: load.py
+# Filename: languages.py
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 11/06/2018
@@ -12,6 +12,8 @@ to integer values (and vice-versa)
 
 import pickle
 import os
+
+import numpy as np
 
 from . import configx
 
@@ -478,3 +480,23 @@ def load_default_languages(load_dir = configx.CONST_DEFAULT_LANGUAGE_DIRECTORY,
     # print('\n========================================================\n')
 
     return token_tagger, pos_taggers
+
+
+def parse_node_matrix(pos_tags, languages):
+    """
+    Function to convert a two-dimensional matrix of nodes into a corresponding matrix of indices
+    using a list of languages, one language per row of output
+    
+    Args:
+        pos_tags (arr): Array of arrays containing nodes
+        languages (arr): Array of Language class instances to use for parsing
+    
+    Returns:
+        (np.ndarray): A two-dimensional matrix corresponding to the input array of arrays
+    """
+    assert(len(pos_tags) <= len(languages))
+
+    x = list(pos_tags[i] for i in range(len(pos_tags))) 
+
+    return np.array(list(languages[i].parse_node(pos_tags[i]) for i in range(len(pos_tags))))
+

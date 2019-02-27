@@ -1,3 +1,4 @@
+
 import numpy as np
 
 from . import parse
@@ -6,7 +7,23 @@ from . import util
 
 def create_errored_sentences(unique_arrays, array_indices, tagger, languages, mapping, selections, 
                              new_sentences, start_indices, errored, corrected):
-
+    """Summary
+    
+    Args:
+        unique_arrays (TYPE): Description
+        array_indices (TYPE): Description
+        tagger (TYPE): Description
+        languages (TYPE): Description
+        mapping (TYPE): Description
+        selections (TYPE): Description
+        new_sentences (TYPE): Description
+        start_indices (TYPE): Description
+        errored (TYPE): Description
+        corrected (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
     tokens = unique_arrays[0]
     tags = unique_arrays[4]   
 

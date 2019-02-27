@@ -1,10 +1,13 @@
 from src import load
 from src import languages
+from src import convert
 
 
 def main():
 
-	languages.load_default_languages()
+	convert.convert_csv_rules()
+
+	# languages.load_default_languages()
 	# load.save_dataset()
 
 	

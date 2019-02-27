@@ -11,6 +11,12 @@ Special text
 BREAK_LINE = "==========================================================\n"
 
 '''
+Constants from previous code
+'''
+CONST_MAX_SEARCH_TOKEN_INDEX = 4000
+
+
+'''
 Specific directories
 '''
 CONST_DATABASE_DIRECTORY = "raw_data"
@@ -27,7 +33,6 @@ CONST_CORPUS_SAVE_DIRECTORY = "init_15"
 # Prefix/Suffix for each text file (within /CONST_TEXT_OUTPUT_DIRECTORY/CONST_TEXT_OUTPUT_PREFIX)
 CONST_SENTENCE_FILE_PREFIX = "type"
 CONST_SENTENCE_FILE_SUFFIX = ".txt"
-
 
 CONST_ERRORED_PREFIX = "error"
 CONST_CORRECT_PREFIX = "correct"
