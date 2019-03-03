@@ -134,6 +134,44 @@ def check_matched_indices(pos, check, used_tags):
     return matches, counts
 
 
+def get_files(data_dir, filetype, n_files=-1):
+    """
+    Obtain a list of files within a directory of a certain filetype
+    
+    Args:
+        data_dir (str): Directory to search for corpus files
+        filetype (str): File suffix
+        n_files (int): Max number of files to obtain
+    
+    Returns:
+        (arr): List of paths to files satisfying requirements
+    """
+    # List of compliant files
+    file_list = list()
+
+    data_files = os.listdir(data_dir)
+
+    if n_files == -1:
+
+        n_files = len(data_files)
+
+    else:
+
+        n_files = min(len(data_files), n_files)
+
+    perm = np.random.permutation(len(data_files))[:n_files]
+
+    for i in range(n_files):
+
+        filename = data_files[perm[i]]
+
+        if filename.endswith(filetype):
+
+            file_list.append(os.path.join(data_dir, filename))
+
+    return file_list
+
+
 def mkdir_p(path):
     """    
     Function to recursively generate directories

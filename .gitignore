@@ -4,3 +4,5 @@ languages/
 output/
 raw_data/
 rules/
+scrape/
+scrape_src/

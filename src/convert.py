@@ -2,7 +2,7 @@
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 19/06/2018
-# Date Last Modified: 27/02/2019
+# Date Last Modified: 03/03/2019
 # Python Version: 3.7
 
 '''
@@ -40,24 +40,24 @@ def load_search_matrices(search_directory, pos_taggers):
             set_pos (arr): List of np.ndarray, each corresponding to a single part-of-speech index 
     '''
     # Get paths to files on disk
-    tokens = os.path.join(search_directory, "tokens.npy")
-    forms = os.path.join(search_directory, "forms.npy")
-    lengths = os.path.join(search_directory, "lengths.npy")
+    tokens = os.path.join(search_directory, configx.CONST_TOKENS_SUFFIX)
+    forms = os.path.join(search_directory, configx.CONST_FORM_SUFFIX)
+    lengths = os.path.join(search_directory, configx.CONST_LENGTHS_SUFFIX)
 
     # Path prefix for part-of-speech arrays
-    pos_prefix = os.path.join(search_directory, "pos")
+    pos_prefix = os.path.join(search_directory, configx.CONST_POS_PREFIX)
 
     # Load matrices from disk
-    forms = np.load(forms)
-    tokens = np.load(tokens)
-    lengths = np.load(lengths)
+    forms = np.load(forms + ".npy")
+    tokens = np.load(tokens + ".npy")
+    lengths = np.load(lengths + ".npy")
 
     set_pos = []
 
     # Load each individual part-of-speech matrix (two-dimensional)
     for i in range(len(pos_taggers) - 1):
 
-        arr = np.load(pos_prefix + str(i) + ".npy")
+        arr = np.load(os.path.join(search_directory, configx.CONST_POS_SUFFIX + str(i) + ".npy"))
         arr = arr.reshape((1,) + arr.shape)
         set_pos.append(arr)   
 
@@ -68,15 +68,16 @@ def load_search_matrices(search_directory, pos_taggers):
     return [tokens, forms, lengths, set_pos]
 
 
-def load_unique_matrices(database_directory, pos_taggers):
+def load_unique_matrices(database_directory, pos_taggers, save_prefix = configx.CONST_CLEANED_DATABASE_PREFIX):
     '''
     Loads data referencing unique tokens and part-of-speech tags from disk and produces
     derivative matrices that indicate all possible part-of-speech combinations and their sorted order
-
+    
     Args:
         database_directory (str): Directory where the token/part-of-speech matrices are stored
         pos_taggers (arr): Array of Language instances used to tag part-of-speech
-
+        save_prefix (str, optional): Prefix used for token/part-of-speech matrices
+    
     Returns:
         (arr): A list containing the following objects:
             unique_tokens (np.ndarray): Matrix containing all unique tokens within the corpus data
@@ -88,18 +89,18 @@ def load_unique_matrices(database_directory, pos_taggers):
             unique_pos_classes (dict): Dictionary containing all possible unique part-of-speech tag combinations (excluding form)    
     '''
     # Get paths to files on disk
-    unique_tokens = os.path.join(database_directory, "unique_nodes_tokens.npy")
-    unique_pos = os.path.join(database_directory, "unique_nodes_pos.npy")
+    unique_tokens = os.path.join(database_directory, '_'.join([save_prefix, configx.CONST_TOKENS_SUFFIX]))
+    unique_pos = os.path.join(database_directory, '_'.join([save_prefix, configx.CONST_POS_SUFFIX]))
     
-    sort = os.path.join(database_directory, "sort.npy")
-    sort_form = os.path.join(database_directory, "sort_form.npy")
+    sort = os.path.join(database_directory, configx.CONST_SORT_SUFFIX)
+    sort_form = os.path.join(database_directory, configx.CONST_SORT_FORM_SUFFIX)
 
     # Load files from disk
-    unique_tokens = np.load(unique_tokens)
-    unique_pos = np.load(unique_pos)
+    unique_tokens = np.load(unique_tokens + ".npy")
+    unique_pos = np.load(unique_pos + ".npy")
 
-    sort = np.load(sort)
-    sort_form = np.load(sort_form)
+    sort = np.load(sort + ".npy")
+    sort_form = np.load(sort_form + ".npy")
 
     n_tokens = len(unique_tokens)
 
@@ -680,8 +681,8 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
 def convert_csv_rules(n_max = -1,
                       n_search = -1,
                       pause = True,
-                      search_directory = configx.CONST_SEARCH_DATABASE_DIRECTORY,
-                      database_directory = configx.CONST_DATABASE_DIRECTORY,
+                      search_directory = configx.CONST_DEFAULT_SEARCH_DATABASE_DIRECTORY,
+                      database_directory = configx.CONST_DEFAULT_DATABASE_DIRECTORY,
                       rule_file_directory = configx.CONST_RULE_CONFIG_DIRECTORY,
                       rule_file_name = configx.CONST_RULE_CONFIG):
 

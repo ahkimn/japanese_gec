@@ -10,12 +10,14 @@ Language class and related functions - for converting string representations of 
 to integer values (and vice-versa)
 '''
 
-import pickle
 import os
+import time
+import pickle
 
 import numpy as np
 
 from . import configx
+from . import util
 
 class Language:
     """
@@ -480,6 +482,91 @@ def load_default_languages(load_dir = configx.CONST_DEFAULT_LANGUAGE_DIRECTORY,
     # print('\n========================================================\n')
 
     return token_tagger, pos_taggers
+
+
+def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
+                              file_type = configx.CONST_CORPUS_TEXT_FILETYPE, 
+                              save_dir = configx.CONST_DEFAULT_LANGUAGE_DIRECTORY, 
+                              node_save_prefix = configx.CONST_NODE_PREFIX, 
+                              pos_save_prefix = configx.CONST_POS_PREFIX,
+                              n_files = -1):
+    """
+    Function to compile the default Language set from the corpus text defaulted by the configx.py configuration file
+    Contains one token tagger as well as five part-of-speech taggers (the last of which contains the token forms)
+    
+    Args:
+        data_dir (TYPE, optional): Directory to search for corpus files
+        file_type (TYPE, optional): Corpus files suffix
+        save_dir (str, optional): Path to directory containing the Language
+        node_save_prefix (str, optional): Prefix used for saving the Language tagging tokens
+        pos_save_prefix (str, optional): Prefix used for saving the Languages outputting part-of-speech tags
+        n_files (TYPE, optional): Maximum number of files to use   
+   
+    """
+    print("Obtaining list of corpus files...")
+    print(configx.BREAK_LINE)
+    file_list = util.get_files(data_dir, file_type, n_files)
+
+    print("Found %d files...\n" % len(file_list) )
+
+    token_tagger = Language(True)
+    pos_taggers = [Language(), Language(), Language(), Language(), Language(True)]
+
+    print("Reading files...")
+    print(configx.BREAK_LINE)
+
+    delimiter = token_tagger.stop_token
+    count = 0
+
+    for filename in file_list[:]:
+
+        count += 1
+
+        # Load sentences from each file and add to taggers
+        with open(filename, 'r', encoding='utf-8') as f:
+
+            start_time = time.time()
+
+            # print("Processing file: " + filename)
+
+            sentences = f.readlines()
+
+            for i in range(len(sentences)):
+
+                sentence = sentences[i].strip()
+
+                nodes, pos = parse_sentence(sentence, configx.CONST_PARSER, delimiter)
+
+                token_tagger.add_sentence(nodes)
+
+                for j in range(len(pos_taggers)):
+
+                    pos_taggers[j].add_sentence(pos[j])
+
+            elapsed_time = time.time() - start_time
+
+            # print("\tSentences completed: %2d\t||\tTime elapsed: %4f" % (len(sentences), elapsed_time))
+            print("\tFile %2d of %2d processed..." % (count, len(file_list)))
+
+    print("\nCompleted processing corpus sentences...")
+    print(configx.BREAK_LINE)
+    print("\tSaving languages...")
+
+    if not os.path.isdir(save_dir):
+        util.mkdir_p(save_dir)
+
+    node_prefix = os.path.join(save_dir, node_save_prefix)
+    pos_prefix = os.path.join(save_dir, pos_save_prefix)
+
+    print("")
+    token_tagger.sort()
+    token_tagger.save_dicts(node_prefix)
+
+    for i in range(len(pos_taggers)):
+
+        pos_taggers[i].sort()
+        pos_taggers[i].save_dicts(pos_prefix + str(i))
+    print("\n\tCompleted...\n")
 
 
 def parse_node_matrix(pos_tags, languages):

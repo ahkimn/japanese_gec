@@ -1,3 +1,14 @@
+# Filename: load.py
+# Author: Alex Kimn
+# E-mail: alex.kimn@outlook.com
+# Date Created: 11/06/2018
+# Date Last Modified: 03/03/2019
+# Python Version: 3.7
+
+'''
+Very inefficient and confusing configuration file >_<
+'''
+
 import os
 import MeCab
 
@@ -8,22 +19,47 @@ File containing consants used throughout project
 '''
 Special text
 '''
-BREAK_LINE = "==========================================================\n"
+BREAK_LINE = "=========================================================="
 BREAK_SUBLINE = "\t================================================="
 
 '''
-Constants from previous code
+General file constants
 '''
-CONST_MAX_SEARCH_TOKEN_INDEX = 4000
+CONST_DATA_DIRECTORY = "raw_data"
+CONST_POS_PREFIX = "pos"
+CONST_NODE_PREFIX = "node"
 
+'''
+Constants for corpus files
+'''
+CONST_CORPUS_TEXT_PREFIX = "scrape"
+CONST_CORPUS_TEXT_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_CORPUS_TEXT_PREFIX)
+CONST_CORPUS_TEXT_FILETYPE = ".txt"
 
 '''
-Specific directories
+Database file constants
 '''
-CONST_DATABASE_DIRECTORY = "raw_data"
-CONST_SEARCH_DATABASE_DIRECTORY = "raw_data"
+# CONST_DEFAULT_DATABASE_PREFIX = "TEST_30" 
+CONST_DEFAULT_DATABASE_PREFIX = "original"
+CONST_DEFAULT_DATABASE_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_DEFAULT_DATABASE_PREFIX)
+CONST_DEFAULT_SEARCH_DATABASE_DIRECTORY = CONST_DEFAULT_DATABASE_DIRECTORY
 CONST_RULE_CONFIG_DIRECTORY = "rules"
 
+CONST_UNCLEANED_DATABASE_PREFIX = "init"
+CONST_CLEANED_DATABASE_PREFIX = "cleaned"
+
+CONST_POS_SUFFIX = "pos"
+CONST_TOKENS_SUFFIX = "node"
+
+CONST_FORM_SUFFIX = "form"
+CONST_LENGTHS_SUFFIX = "length"
+
+CONST_SORT_SUFFIX = "sort"
+CONST_SORT_FORM_SUFFIX = "sort_form"
+
+'''
+Generated text file constants
+'''
 # Folder to store text file outputs
 CONST_TEXT_OUTPUT_DIRECTORY = "generated_text"
 # Essentially the name of the dataset (within /CONST_TEXT_OUTPUT_DIRECTORY)
@@ -58,7 +94,6 @@ CONST_SMT_CONFIG_DIRECTORY = "config"
 # Default number of processors used
 CONST_NUM_PROCESSORS = str(8)
 
-
 CONST_MODEL_SAVE_DIRECTORY = "model"
 # Default embedding save locations
 CONST_EMBEDDING_TOKENS = os.path.join(CONST_MODEL_SAVE_DIRECTORY, "embedding_tokens.npy")
@@ -70,12 +105,15 @@ CONST_EMBEDDING_FAIRSEQ_SAVE = os.path.join(CONST_TEXT_OUTPUT_DIRECTORY, CONST_T
 
 CONST_MAX_SENTENCE_LENGTH = 40
 
+'''
+Constants from previous code
+'''
+CONST_MAX_SEARCH_TOKEN_INDEX = 5000
 
 '''
 Specific files
 '''
 CONST_RULE_CONFIG = "pair_data.csv"
-
 
 '''
 Constants for Languages
@@ -92,6 +130,8 @@ CONST_SENTENCE_DELIMITER_TOKEN = '。'
 CONST_SENTENCE_DELIMITER_INDEX = 3
 
 CONST_LANGUAGES_SAVE_DIRECTORY = "languages"
+
+# CONST_DEFAULT_LANGUAGE_PREFIX = "TEST_30"
 CONST_DEFAULT_LANGUAGE_PREFIX = "original"
 CONST_DEFAULT_LANGUAGE_DIRECTORY = \
 	os.path.join(CONST_LANGUAGES_SAVE_DIRECTORY, CONST_DEFAULT_LANGUAGE_PREFIX)
@@ -104,11 +144,7 @@ CONST_UPDATED_TARGET_LANGUAGE_PREFIX = "updated_target"
 CONST_UPDATED_TARGET_LANGUAGE_DIRECTORY = \
 	os.path.join(CONST_LANGUAGES_SAVE_DIRECTORY, CONST_UPDATED_TARGET_LANGUAGE_PREFIX)
 
-CONST_POS_PREFIX = "pos"
-CONST_NODE_PREFIX = "node"
-
 CONST_TRUNCATED_OUTPUT_DIR = "truncated"
-
 
 '''
 Constants for Fairseq
