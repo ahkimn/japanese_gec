@@ -9,9 +9,11 @@
 Functions to convert CSV rules into text data via corpus manipulation
 '''
 
+import gc
 import os
 import csv
 import ast
+import psutil
 
 import numpy as np
 
@@ -34,7 +36,7 @@ def load_search_matrices(search_directory, pos_taggers):
         (arr): A list containing the following objects:
             tokens (np.ndarray): Sentences in tokenized form (as a matrix with sentences being represented by individual rows)
             forms (np.ndarray): Form part-of-speech tag corresponding to each token in tokens
-            legnths (np.ndarray): Lengths of each sentence (single array)
+            lengths (np.ndarray): Lengths of each sentence (single array)
             set_pos (arr): List of np.ndarray, each corresponding to a single part-of-speech index 
     '''
     # Get paths to files on disk
@@ -55,7 +57,13 @@ def load_search_matrices(search_directory, pos_taggers):
     # Load each individual part-of-speech matrix (two-dimensional)
     for i in range(len(pos_taggers) - 1):
 
-        set_pos.append(np.load(pos_prefix + str(i) + ".npy"))
+        arr = np.load(pos_prefix + str(i) + ".npy")
+        arr = arr.reshape((1,) + arr.shape)
+        set_pos.append(arr)   
+
+        del arr     
+
+    set_pos = np.vstack(set_pos)
 
     return [tokens, forms, lengths, set_pos]
 
@@ -204,13 +212,17 @@ def match_template_tokens(unique_matrices, search_numbers, selected_cells, n_max
         n_max (int): Determines maximal token index that is outputted. If this value is -1, any token
                                is allowed to be outputted
     Returns:
-        TYPE: Description
-    '''
+        (tuple): Tuple containing the following:
+            (np.ndarray): Array containing all possible substitute part-of-speech combinations (including form)
+            (np.ndarray): Array containing all possible substitute part-of-speech combinations (excluding form)
+    '''    
     if n_max == -1:
         n_max = len(unique_matrices[2])
 
     else:
         n_max = min(len(unique_matrices[2]), n_max)
+
+    # n_max = len(unique_matrices[2])
 
     # Part-of-speech indices that need to be matched exactly
     match_indices = np.where(selected_cells == 1)[0]
@@ -228,7 +240,7 @@ def match_template_tokens(unique_matrices, search_numbers, selected_cells, n_max
         # Any token class may substitute
         possible_matches = np.arange(n_max)
   
-    classes = get_pos_classes(unique_matrices, randomize_indices, possible_matches, search_numbers)
+    classes = get_pos_classes(unique_matrices, randomize_indices, search_numbers, possible_matches)
 
     return classes
 
@@ -245,7 +257,7 @@ def search(unique_matrices, match_indices, search_numbers, n_max):
         n_max (int): Determines maximal token index that is outputted
 
     Returns:
-        (tuple: Tuple containing the following:
+        (tuple): Tuple containing the following:
             (np.ndarray): Array containing all possible substitute part-of-speech combinations (including form)
             (np.ndarray): Array containing all possible substitute part-of-speech combinations (excluding form)
     """
@@ -381,21 +393,29 @@ def get_pos_classes(unique_matrices, randomize_indices, original, possible_match
     return np.array(all_tags), np.array(all_classes)        
 
 
-def match_template_sentence(search_matrices, search_numbers, selections, possible_classes, pos_taggers,
-                            n_possibilities, n_max, n_search = 0):
-    """Summary
+def match_template_sentence(search_matrices, search_numbers, selections, possible_classes, 
+                            token_tagger, pos_taggers, n_max, n_search):
+    """
+    Given a template phrase, and matching leniency for part-of-speech tags, scan a corpus of text (search_matrices) for 
+    sentences that contain phrases that match with the template phrase
     
     Args:
-        search_matrices (TYPE): Description
-        search_numbers (TYPE): Description
-        selections (TYPE): Description
-        possible_classes (TYPE): Description
-        n_possibilities (TYPE): Description
-        n_max (TYPE): Description
-        n_search (int, optional): Maximum sentence index to search to
+        search_matrices (arr): List of np.ndarrays containing the token and part-of-speech information for each sentence
+        search_numbers (arr): Array of part-of-speech values corresponding to the phrase to match too
+        selections (arr): Array determining which part-of-speech indices need to be matched
+        possible_classes (arr): Array containing all possible substitute part-of-speech combinations to the template phrase (excluding form)
+        token_tagger (Language): Language class instance used to tag tokens
+        pos_taggers (arr): List of Language class instances used to tag each part-of-speech index
+        n_max (int): Maximum index value of tokens matched
+        n_search (int): Maximum number of sentences to search through (for testing efficiency mostly)
     
     Returns:
-        TYPE: Description
+        (tuple): Tuple containing the following arrays:
+            ret_sentences (arr): Three-dimensional list containing string/token representations of the matched sentences, separated by sub-rule
+            ret_indices (arr): Three-dimensional list (lowest level np.ndarray) containing the token indices of each of the matched sentences,
+                               separated by sub-rule
+            starts (arr); List of lists denoting the start positions of each matched phrase within each matched sentence
+
     """
     # Separate individual matrices for use
     tokens = search_matrices[0]
@@ -406,80 +426,184 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     # Number of tokens in correct_sentence
     n_tokens = len(search_numbers)
 
-    #
-    if n_search == 0:
+    # Restrict number of sentences to search through
+    if n_search == -1:
 
         n_search = len(forms)
 
     else:
 
-        n_search = min(n_search, len(forms))
+        n_search = min(n_search, len(tokens))
 
+    # Permutation to randomly select the sentences from the array
     perm = np.random.permutation(len(forms))[:n_search]
     match_array = None
 
-    print(perm)
+    # Obtain a view of
+    pos = pos[:, perm]
 
-    # Iterate over each part-of-speech index
+    # Iterate over each part-of-speech index, restricting possible matches by part-of-speech indices demanding exact matching
     for i in range(len(pos_taggers)):
 
+        # Part-of-speech matching leniency and tags of index i for each token
         s_column = selections[:, i]
         n_column = search_numbers[:, i]
-
-        print(s_column)
-        print(n_column)
-
-        print(selections)
-
-        raise
-
+       
+        # If there is leniency in the part-of-speech for all tokens, continue
         if np.all(s_column != 1):
 
             pass
 
         else:
 
+            # Initialize match_array on first part-of-speech index
             if i == 0:
 
-                match_array = util.search_template(pos[i][perm], np.argwhere(s_column == 1), n_column, n_tokens)      
+                match_array = util.search_template(pos[i], np.argwhere(s_column == 1), n_column, n_tokens)      
 
+            # Perform array intersection on subsequent part-of-speech indices
             elif i != len(pos_taggers) - 1:
 
-                match_array = np.logical_and(match_array, util.search_template(pos[i][perm], np.argwhere(s_column == 1), n_column, n_tokens))
+                match_array = np.logical_and(match_array, util.search_template(pos[i], np.argwhere(s_column == 1), n_column, n_tokens))
                
+            # Form of token is on different data array
             else:
 
                 match_array = np.logical_and(match_array, util.search_template(forms[perm], np.argwhere(s_column == 1), n_column, n_tokens))
            
-    successes = np.any(match_array, axis = 1)
-    n_total = np.sum(successes)
+    # Get indices of sentences that contain at least one match
+    successes = np.any(match_array, axis=1)
+    n_matched_sentences = np.sum(successes)
+
+    # Extract the contents and length of sentences that contain matches
+    sentences = tokens[perm][successes]
+    lengths = lengths[perm][successes]
+    pos = pos[:, successes]
 
     match_array = match_array[successes]
 
-    sentences = tokens[perm][successes]
-    lengths = lengths[perm][successes]
+    # Get total number of matches (individual sentences may have more than one)
+    n_per = np.sum(match_array, axis=1)
+    n_matches = np.sum(match_array)
 
-    starts = list()
+    print("\n\tNumber of sentences with a match: %s" % n_matched_sentences)
+    print("\tTotal number of matches: %s" % n_matches)
 
+    # Create new arrays to copy data for sentences with more than one match
+    temp_match_array = np.ndarray((n_matches, match_array.shape[1]), match_array.dtype)
+    temp_sentences = np.ndarray((n_matches, sentences.shape[1]), sentences.dtype)
+    temp_lengths = np.ndarray((n_matches), lengths.dtype)   
+
+    temp_pos = np.ndarray((pos.shape[0], n_matches, pos.shape[2]), pos.dtype)
+
+    # Copy data to new array
+    temp_match_array[:n_matched_sentences] = match_array[:] 
+    temp_sentences[:n_matched_sentences] = sentences[:]
+    temp_lengths[:n_matched_sentences] = lengths[:]
+
+    temp_pos [:, :n_matched_sentences] = pos[:][:]
+
+    insert_index = n_matched_sentences 
+
+    print("\n\tProcessing sentences with more than one match")
+
+    for j in range(len(match_array)):
+
+        # Iterate over sentences with more than one match
+        if n_per[j] > 1:
+
+            copy = np.copy(match_array[j])
+
+            # For each extra match
+            while n_per[j] > 1:
+
+                # Remove the first instance of the match in the match_array
+                first_index = np.argmax(copy)
+                copy[first_index] = 0
+
+                # Copy the data for the sentence into each of the new arrays
+                temp_match_array[insert_index][:] = copy[:] 
+                temp_sentences[insert_index][:] = sentences[j][:]
+                temp_lengths[insert_index] = lengths[j]
+                
+                temp_pos[:, insert_index] = pos[:, j]
+
+                n_per[j] -= 1
+                insert_index += 1
+
+                assert(n_per[j] == np.sum(copy))
+
+    print("\tCompleted...")
+
+    assert(insert_index == n_matches)
+
+    # Reset references
+    match_array = temp_match_array
+    sentences = temp_sentences
+    lengths = temp_lengths
+    pos = temp_pos
+
+    # Get index to start search from per each sentence (note that argmax selects first index equivalent to max)
+    # Copied sentences at end of match_array have had their first (k) instances of 1 removed 
     start = (match_array).argmax(axis=1)
+
+    print("\n\tLimiting matches to those within first %d tokens" % (n_max))
+
+    valid = None
+
+    # Limit valid sentences to those in which all tokens within the matched phrase are limited to the first n_max indices
+    for index in range(n_tokens):   
+
+        # Determine where in each sentence to check for classes
+        check = start + index
+
+        # Obtain the token values for each matched phrase
+        values = np.array(list(sentences[j][check[j]] for j in range(len(check))))
+        # Boolean array mask
+        values = (values < n_max)
+
+        if valid is None:
+
+            valid = values
+
+        else:
+
+            valid = np.logical_and(valid, values)
+
+    n_valid = np.sum(valid)
+
+    print("\tFinal number of valid sentences: %d" % (n_valid))
+
+    match_array = match_array[valid]
+    sentences = sentences[valid]
+    lengths = lengths[valid]
+    pos = pos[:, valid]
+
+    # Get index to start search from per each sentence (note that argmax selects first index equivalent to max)
+    # Copied sentences at end of match_array have had their first (k) instances of 1 removed 
+    start = (match_array).argmax(axis=1)
+    del match_array
 
     all_matches = list()
     all_counts = list()
 
-    for index in range(len(possible_classes)):
+    # Iterate over each token, checking which sentences match each sub-rule (as defined by tuples of possible_classes)
+    for index in range(n_tokens):
 
         assert(len(possible_classes[index]) != 0)
+
+        # Determine where in each sentence to check for classes
         check = start + index
 
-        matches, counts = util.check_matched_indices(pos, successes, check, possible_classes[index], perm, N_POS)
+        matches, counts = util.check_matched_indices(pos, check, possible_classes[index])
     
         all_matches.append(matches)
         all_counts.append(counts)
 
-    rule_types = dict()
+    rule_types = dict()    
 
     # Iterate over each matched sentence
-    for sentence_number in range(n_total):
+    for sentence_number in range(n_valid):
 
         subrules = list()
 
@@ -494,17 +618,17 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
 
                     subrules.append(k)
 
-        # Each subrule represents unique combination of classes among matched sentences
+        # Each sub-rule represents unique combination of classes among matched sentences
         subrules = tuple(subrules)
         if len(subrules) == len(possible_classes):
 
-            # If the subrule has already been seen
+            # If the sub-rule has already been seen
             if subrules in rule_types.keys():
 
-                # Place indices corresponding to subrule
+                # Place indices corresponding to sub-rule
                 rule_types[subrules].append(sentence_number)
 
-            # If subrule has not already been seen
+            # If sub-rule has not already been seen
             else:
 
                 rule_types[subrules] = [sentence_number]
@@ -512,45 +636,49 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
         else:
             pass
 
-    # All possible subrules within this rule
+    # All possible sub-rules within this rule
     subrules = list(rule_types.keys())
 
-    print(subrules)
+    print("\n\tNumber of possible sub-rules: %d" % (len(subrules)))
 
-    ret = list()
+    ret_sentences = list()
     ret_indices = list()
-    tags_indices = list()
+    starts = list()
 
-    # Iterate through each subrule
+    # Iterate through each sub-rule
     for sub in range(len(subrules)):
 
-        # Indices associated with each subrule
+        # Indices associated with each sub-rule
         selected_indices = np.array(rule_types[subrules[sub]])
 
-        # Sentences associated with each subrule
+        # Sentences associated with each sub-rule
         under = sentences[selected_indices]
         chosen_lengths = lengths[selected_indices]
 
-        # Total number of sentences associated with each subrule
-        z = len(under)
+        # Total number of sentences associated with each sub-rule
+        n_under = len(under)
 
-        if z != 0:  
+        # Only consider sub-rules with sentences matching
+        if n_under != 0:  
 
-            tags_indices.append(sub)
+            print("\t\tNumber of sentences under sub-rule %d: %d" % (sub + 1, n_under))
 
-            s_perm = np.random.permutation(len(under))[:z]
+            # NOTE: Probably not necessary randomization but whatever
+            # Randomize order of sentences (again)
+            s_perm = np.random.permutation(len(under))[:n_under]
 
             under = under[s_perm]
             chosen_lengths = chosen_lengths[s_perm]
 
-            ret_indices.append(list(under[i][1:chosen_lengths[i]] for i in range(z)))
-            ret.append(list(TOKEN_TAGGER.parse_indices(under[i][1:chosen_lengths[i]]) for i in range(z)))
+            ret_indices.append(list(under[i][1:chosen_lengths[i]] for i in range(n_under)))
+            ret_sentences.append(list(token_tagger.parse_indices(under[i][1:chosen_lengths[i]]) for i in range(n_under)))
             starts.append(start[selected_indices][s_perm].tolist())
 
-    return ret, ret_indices, counts, starts, tags_indices
+    return ret_sentences, ret_indices, starts
 
 
 def convert_csv_rules(n_max = -1,
+                      n_search = -1,
                       pause = True,
                       search_directory = configx.CONST_SEARCH_DATABASE_DIRECTORY,
                       database_directory = configx.CONST_DATABASE_DIRECTORY,
@@ -622,9 +750,10 @@ def convert_csv_rules(n_max = -1,
             preserved = ast.literal_eval(preserved)
 
             # Aggregate mapping into single tuple
-            mapping = (created, altered, preserved)          
+            mapping = (created, altered, preserved)   
 
             print("\tFinding potential substitute tokens...")
+            print(configx.BREAK_SUBLINE)  
 
             # List of possible substitute token classes (part-of-speech combinations) per each index of correct sentence
             # as defined by the selections matrix
@@ -633,34 +762,39 @@ def convert_csv_rules(n_max = -1,
             # Iterate over each token
             for index in range(n_tokens):
 
-                all_tags, all_classes = match_template_tokens(unique_matrices, pos_tags[index], 
+                _, all_classes = match_template_tokens(unique_matrices, pos_tags[index], 
                                                               selections[index], n_max)
+            
                 possible_classes.append(all_classes)
 
             # Determine number of possible substitutes at each index
             n_possibilities = list(len(i) for i in possible_classes)
 
-            print("\tSearching for sentences matching pair template...")
-            s_examples, s_indices, class_counts, \
-                starts, tag_indices = match_template_sentence(search_matrices, pos_tags, selections, possible_classes, 
-                                                              pos_taggers, n_possibilities, n_max)
+            print("\n\tSearching for sentences matching pair template...")
+            print(configx.BREAK_SUBLINE)
+            s_examples, s_indices, starts, \
+                = match_template_sentence(search_matrices, pos_tags, selections, possible_classes, 
+                                          token_tagger, pos_taggers, n_max, n_search)
 
-            raise
 
-            print("\tGenerating new sentence pairs...")
+
+            print("\n\tGenerating new sentence pairs...")
+            print(configx.BREAK_SUBLINE)
             error_examples, l_correct, l_error = \
-                generate.create_errored_sentences(unique_matrices, ATTRIBUTE_INDICES, TOKEN_TAGGER, POS_TAGGERS, 
+                generate.create_errored_sentences(unique_matrices, attribute_indices, token_tagger, pos_taggers, 
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
+
+            print(starts)
 
             if (pause):
 
                 temp = input()
 
-            print("\tSaving new data...")
-            save.save_rule(corrected_sentence, error_sentence, s_examples, error_examples, iterations, rule_text)
+            # print("\tSaving new data...")
+            # save.save_rule(corrected_sentence, error_sentence, s_examples, error_examples, iterations, rule_text)
 
-            print("\tPaired data saved succesfully...\n")
+            # print("\tPaired data saved successfully...\n")
 
             iterations += 1
 

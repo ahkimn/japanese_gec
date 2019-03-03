@@ -9,6 +9,7 @@ File containing consants used throughout project
 Special text
 '''
 BREAK_LINE = "==========================================================\n"
+BREAK_SUBLINE = "\t================================================="
 
 '''
 Constants from previous code

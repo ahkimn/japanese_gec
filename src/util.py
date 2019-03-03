@@ -50,8 +50,20 @@ def last(arr, low, high, x, n):
     # If the value x is not found
     return -1
 
-def search_template(arr, indices, vals, n):
 
+def search_template(arr, indices, vals, n):
+    """
+    Perform a rolling search, looking for a template within a given array
+    
+    Args:
+        arr (np.ndarray): Array to search
+        indices (np.ndarray): Indices to match
+        vals (np.ndarray): Values to match
+        n (int): Length of indices array
+    
+    Returns:
+        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+    """
     ret = None
 
     for index in indices:
@@ -59,6 +71,8 @@ def search_template(arr, indices, vals, n):
         i = index[0]
         val = vals[i]
 
+        # Restrict search on array to ensure that sequence fits (i.e. search for first index match should end n-i indices before end
+        # to ensure output has length len(arr) - n + 1)
         if i != n - 1:
 
             test = (arr[:, i:-(n - i) + 1] == val)
@@ -67,29 +81,45 @@ def search_template(arr, indices, vals, n):
 
             test = (arr[:, i: ] == val)
 
+        # Perform intersection if ret has already been initialized
         if ret is not None:
 
             ret = np.logical_and(test, ret)
 
+        # Intialize ret on first iteration
         else: 
 
             ret = test
 
     return ret
 
-
-def check_matched_indices(pos, indices, check, used_tags, perm, n):
-
+def check_matched_indices(pos, check, used_tags):
+    """
+    Determine the type of a match of part-of-speech indices where the types are defined by the used_tags array
+    
+    Args:
+        pos (np.ndarray): Matrix containing the part-of-speech values to search through
+        check (np.ndarray): Array determining which indices per row (sentence) of pos to search through
+        used_tags (arr): List of tuples containing the possible classes
+    
+    Returns:
+        (tuple): A tuple containing the following arrays
+            matches (arr): An array of np.ndarrays masking where the matched phrases align with the each tag of used_tags
+            counts (arr); An array containing the number of matched phrases that align with each of used_tags
+    """
     matches = []
     counts = []
 
+    # Array of part-of-speech tags for each matched token
     x = []
+    n = pos.shape[0]
 
-    for i in range(n - 1):
+    # Iterate over each part-of-speech tags
+    for i in range(n):
 
-        t = pos[i][perm][indices]
-        t = list(t[i][check[i]] for i in range(len(check)))
-        x.append(t)
+        templates = pos[i]
+        templates = list(templates[j][check[j]] for j in range(len(check)))
+        x.append(templates)
 
     x = np.array(x).T
 
@@ -102,6 +132,7 @@ def check_matched_indices(pos, indices, check, used_tags, perm, n):
         counts.append(count)
 
     return matches, counts
+
 
 def mkdir_p(path):
     """    
@@ -123,5 +154,3 @@ def mkdir_p(path):
         else:
 
             raise
-
-

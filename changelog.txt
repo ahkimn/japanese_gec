@@ -1,0 +1,17 @@
+Code Tags (PLEASE PUT IN CODE AND/OR ON THIS FILE:
+	NOTE: Any comments for others
+	TODO: Things to be updated
+	BROKEN: Things that need to be fixed
+
+=====================================
+Day by Day Log
+=====================================
+
+03/03/2019:
+	(Alex) - /src/convert.py:
+	    - completed docstrings
+		- sentences with multiple matches have each match treated separately (rather than just the first)
+		- n_max properly regulates which sentences are passed for generation (i.e. only patterns with matches within the first n_max indices are used)
+	(Alex) - /src/util.py:
+		- completed docstrings
+	

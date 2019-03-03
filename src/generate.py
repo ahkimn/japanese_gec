@@ -2,34 +2,19 @@
 import numpy as np
 
 from . import parse
+from . import languages
 from . import util
 
 
-def create_errored_sentences(unique_arrays, array_indices, tagger, languages, mapping, selections, 
+def create_errored_sentences(unique_arrays, array_indices, tagger, pos_taggers, mapping, selections, 
                              new_sentences, start_indices, errored, corrected):
-    """Summary
     
-    Args:
-        unique_arrays (TYPE): Description
-        array_indices (TYPE): Description
-        tagger (TYPE): Description
-        languages (TYPE): Description
-        mapping (TYPE): Description
-        selections (TYPE): Description
-        new_sentences (TYPE): Description
-        start_indices (TYPE): Description
-        errored (TYPE): Description
-        corrected (TYPE): Description
-    
-    Returns:
-        TYPE: Description
-    """
     tokens = unique_arrays[0]
     tags = unique_arrays[4]   
 
     c_error, nodes_error = parse.parse(errored)
     c_error = list(list(a[z] for z in array_indices) for a in c_error)
-    error_pos = np.array(list(util.parse_pos_tags(a, languages) for a in c_error))
+    error_pos = np.array(list(languages.parse_node_matrix(a, pos_taggers) for a in c_error))
     
     _, nodes_correct = parse.parse(corrected)
 
@@ -61,7 +46,7 @@ def create_errored_sentences(unique_arrays, array_indices, tagger, languages, ma
 
             c_new, nodes_new = parse.parse(temp)
             c_new = list(list(a[z] for z in array_indices) for a in c_new)
-            new_pos = np.array(list(util.parse_pos_tags(a, languages) for a in c_new))
+            new_pos = np.array(list(languages.parse_node_matrix(a, pos_taggers) for a in c_new))
 
             new_pos = new_pos[current_start:current_start + l_correct]
             nodes_new = nodes_new[current_start:current_start + l_correct]
@@ -92,8 +77,7 @@ def create_errored_sentences(unique_arrays, array_indices, tagger, languages, ma
                     possibilities = []
                     possibilities.append(first_template)
 
-                else:
-      
+                else:      
 
                     possibilities = [0] * (2 ** len(variable_positions))
 
