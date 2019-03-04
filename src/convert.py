@@ -729,10 +729,12 @@ def convert_csv_rules(n_max = -1,
             pos_tags = rule_text[2]
             pos_tags = pos_tags.split(',')
 
+            print(pos_tags)
+
             # Convert part-of-speech tags to index form
             n_tokens = int(len(pos_tags) / n_pos)
             pos_tags = np.array(list(languages.parse_node_matrix(pos_tags[i * n_pos: i * n_pos + n_pos], pos_taggers) for i in range(n_tokens)))   
-
+            print(pos_tags)
 
             # Array of arrays denoting hows part-of-speech tags have been selected
             # This is marked as -1 = null, 0 = no match, 1 = match
@@ -773,7 +775,7 @@ def convert_csv_rules(n_max = -1,
 
             print("\n\tSearching for sentences matching pair template...")
             print(configx.BREAK_SUBLINE)
-            s_examples, s_indices, starts, \
+            s_examples, _, starts, \
                 = match_template_sentence(search_matrices, pos_tags, selections, possible_classes, 
                                           token_tagger, pos_taggers, n_max, n_search)
 
@@ -782,15 +784,11 @@ def convert_csv_rules(n_max = -1,
             print("\n\tGenerating new sentence pairs...")
             print(configx.BREAK_SUBLINE)
             error_examples, l_correct, l_error = \
-                generate.create_errored_sentences(unique_matrices, attribute_indices, token_tagger, pos_taggers, 
+                generate.create_errored_sentences(unique_matrices, token_tagger, pos_taggers, 
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
 
-            print(starts)
-
-            if (pause):
-
-                temp = input()
+            raise
 
             # print("\tSaving new data...")
             # save.save_rule(corrected_sentence, error_sentence, s_examples, error_examples, iterations, rule_text)

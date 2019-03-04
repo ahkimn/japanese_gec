@@ -20,7 +20,8 @@ File containing consants used throughout project
 Special text
 '''
 BREAK_LINE = "=========================================================="
-BREAK_SUBLINE = "\t================================================="
+BREAK_SUBLINE = "\t=================================================="
+BREAK_HALFLINE = "\t\t==========================================="
 
 '''
 General file constants

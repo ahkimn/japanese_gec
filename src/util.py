@@ -93,6 +93,7 @@ def search_template(arr, indices, vals, n):
 
     return ret
 
+
 def check_matched_indices(pos, check, used_tags):
     """
     Determine the type of a match of part-of-speech indices where the types are defined by the used_tags array

@@ -571,7 +571,7 @@ def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
 
 def parse_node_matrix(pos_tags, languages):
     """
-    Function to convert a two-dimensional matrix of nodes into a corresponding matrix of indices
+    Function to convert a one-dimensional matrix of nodes into a corresponding matrix of indices
     using a list of languages, one language per row of output
     
     Args:
@@ -579,11 +579,8 @@ def parse_node_matrix(pos_tags, languages):
         languages (arr): Array of Language class instances to use for parsing
     
     Returns:
-        (np.ndarray): A two-dimensional matrix corresponding to the input array of arrays
+        (np.ndarray): A one-dimensional matrix corresponding to the input array of arrays
     """
     assert(len(pos_tags) <= len(languages))
 
-    x = list(pos_tags[i] for i in range(len(pos_tags))) 
-
     return np.array(list(languages[i].parse_node(pos_tags[i]) for i in range(len(pos_tags))))
-
