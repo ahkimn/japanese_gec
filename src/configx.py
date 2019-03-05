@@ -95,7 +95,7 @@ CONST_SMT_CONFIG_DIRECTORY = "config"
 # Default number of processors used
 CONST_NUM_PROCESSORS = str(8)
 
-CONST_MODEL_SAVE_DIRECTORY = "model"
+CONST_MODEL_SAVE_DIRECTORY = "model_save"
 # Default embedding save locations
 CONST_EMBEDDING_TOKENS = os.path.join(CONST_MODEL_SAVE_DIRECTORY, "embedding_tokens.npy")
 CONST_EMBEDDING = os.path.join(CONST_MODEL_SAVE_DIRECTORY, "embedding.npy")
@@ -155,3 +155,14 @@ CONST_CNN_SAVE_DIRECTORY = "cnn_model"
 CONST_SOURCE_DICTIONARY_NAME = "source_dict.txt"
 CONST_TARGET_DICTIONARY_NAME = "target_dict.txt"
 CONST_MAX_DICT_SIZE = 5000
+
+
+
+
+
+'''
+Word2Vec Constants
+'''
+CONST_WORD_2_VEC_DIR_PREFIX = "w2v"
+CONST_WORD_2_VEC_SAVE_DIRECTORY = os.path.join(CONST_MODEL_SAVE_DIRECTORY, CONST_WORD_2_VEC_DIR_PREFIX)
+CONST_WORD_2_VEC_MODEL_NAME = "w2v.model"
