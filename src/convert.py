@@ -1,4 +1,4 @@
-# Filename: load.py
+# Filename: convert.py
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 19/06/2018
@@ -729,12 +729,9 @@ def convert_csv_rules(n_max = -1,
             pos_tags = rule_text[2]
             pos_tags = pos_tags.split(',')
 
-            print(pos_tags)
-
             # Convert part-of-speech tags to index form
             n_tokens = int(len(pos_tags) / n_pos)
             pos_tags = np.array(list(languages.parse_node_matrix(pos_tags[i * n_pos: i * n_pos + n_pos], pos_taggers) for i in range(n_tokens)))   
-            print(pos_tags)
 
             # Array of arrays denoting hows part-of-speech tags have been selected
             # This is marked as -1 = null, 0 = no match, 1 = match
@@ -783,7 +780,7 @@ def convert_csv_rules(n_max = -1,
 
             print("\n\tGenerating new sentence pairs...")
             print(configx.BREAK_SUBLINE)
-            error_examples, l_correct, l_error = \
+            error_examples = \
                 generate.create_errored_sentences(unique_matrices, token_tagger, pos_taggers, 
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
