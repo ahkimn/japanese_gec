@@ -1,8 +1,10 @@
 __pycache__/
 generated_text/
 languages/
+model_save/
 output/
 raw_data/
 rules/
 scrape/
 scrape_src/
+src/deprecated/

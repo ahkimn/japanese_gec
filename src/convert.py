@@ -690,14 +690,14 @@ def convert_csv_rules(n_max = -1,
     attribute_indices = [0, 1, 4, 5, 6]
     n_pos = len(pos_taggers)
 
-    print("Loading token database...")
+    print("\nLoading token database...")
     print(configx.BREAK_LINE)
 
     # Load matrices necessary for sentence generation
     search_matrices = load_search_matrices(search_directory, pos_taggers)
     unique_matrices = load_unique_matrices(database_directory, pos_taggers)
 
-    print("Finished loading token databases...")
+    print("\nFinished loading token databases...")
     print(configx.BREAK_LINE)
     
     # Load rule file
@@ -722,7 +722,7 @@ def convert_csv_rules(n_max = -1,
             corrected_sentence = rule_text[0]
             error_sentence = rule_text[1]
 
-            print("Reading Rule %2d: %s --> %s" % (iterations, corrected_sentence, error_sentence))
+            print("\nReading Rule %2d: %s --> %s" % (iterations, corrected_sentence, error_sentence))
             print(configx.BREAK_LINE)
             
             # Retrieve unencoded part-of-speech tags of the correct sentence
@@ -752,7 +752,7 @@ def convert_csv_rules(n_max = -1,
             # Aggregate mapping into single tuple
             mapping = (created, altered, preserved)   
 
-            print("\tFinding potential substitute tokens...")
+            print("\n\tFinding potential substitute tokens...")
             print(configx.BREAK_SUBLINE)  
 
             # List of possible substitute token classes (part-of-speech combinations) per each index of correct sentence
