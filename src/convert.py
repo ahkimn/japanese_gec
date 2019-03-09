@@ -780,10 +780,20 @@ def convert_csv_rules(n_max = -1,
 
             print("\n\tGenerating new sentence pairs...")
             print(configx.BREAK_SUBLINE)
-            error_examples = \
+            error_examples, _, _ = \
                 generate.create_errored_sentences(unique_matrices, token_tagger, pos_taggers, 
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
+
+            # print(error_examples)
+
+            for i in range(len(error_examples)):
+
+                for j in range(5):
+
+                    if j < len(error_examples[i]):
+
+                        print(error_examples[i][j])
 
             raise
 

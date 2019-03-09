@@ -8,10 +8,10 @@ from src import configx
 
 def main():
 
+	# n_files = -1
+	# w2v.construct_default_model(n_files=n_files)
 
-	n_files = 10
-
-	w2v.construct_default_model(n_files=n_files)
+	w2v.interactive()
 	# languages.compile_default_languages(n_files=n_files)
 	# database.construct_default_database(n_files=n_files)
 	# database.clean_default_database(max_length = 30)

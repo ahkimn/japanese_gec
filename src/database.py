@@ -56,7 +56,7 @@ def get_maximum_length(file_list, delimiter):
                 sentence = sentences[i]
 
                 # Obtain nodes (tokens) from MeCab parser on sentence
-                nodes, _ = languages.parse_sentence(sentence, configx.CONST_PARSER, delimiter)
+                nodes, _ = languages.parse_full(sentence, configx.CONST_PARSER, delimiter)
 
                 # Update maximum length
                 n_max = max(n_max, len(nodes))
@@ -136,7 +136,7 @@ def construct_database(data_dir, file_type, n_files, language_dir):
 
                 sentence = sentences[i]
 
-                nodes, pos = languages.parse_sentence(sentence, configx.CONST_PARSER, delimiter)
+                nodes, pos = languages.parse_full(sentence, configx.CONST_PARSER, delimiter)
 
                 indices = node_tagger.parse_sentence(nodes)
                 n_nodes = len(indices)

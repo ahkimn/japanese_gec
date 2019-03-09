@@ -35,6 +35,8 @@ Constants for corpus files
 '''
 CONST_CORPUS_TEXT_PREFIX = "scrape"
 CONST_CORPUS_TEXT_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_CORPUS_TEXT_PREFIX)
+CONST_BCCWJ_NT_TEXT_PREFIX = "bccwj-nt"
+CONST_BCCWJ_NT_TEXT_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_BCCWJ_NT_TEXT_PREFIX)
 CONST_CORPUS_TEXT_FILETYPE = ".txt"
 
 '''
@@ -166,3 +168,10 @@ Word2Vec Constants
 CONST_WORD_2_VEC_DIR_PREFIX = "w2v"
 CONST_WORD_2_VEC_SAVE_DIRECTORY = os.path.join(CONST_MODEL_SAVE_DIRECTORY, CONST_WORD_2_VEC_DIR_PREFIX)
 CONST_WORD_2_VEC_MODEL_NAME = "w2v.model"
+
+# Only select nouns, verbs, or adjectives
+CONST_WORD_2_VEC_CANDIDATES = ['名詞', '動詞', '形容詞']
+
+# Output directory for saved files (e.g. from interactive())
+CONST_WORD_2_VEC_OUTPUT_DIRECTORY = os.path.join(CONST_TEXT_OUTPUT_DIRECTORY, 'w2v')
+

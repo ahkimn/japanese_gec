@@ -195,31 +195,8 @@ def mkdir_p(path):
             raise
 
 
-def tokenize(sentence, tagger, delimiter, remove_delimiter=False):
-
-    if remove_delimiter:
-
-        sentence = sentence.replace(delimiter, '')
-
-    sentence = sentence.strip()
-
-    nodes = list()
-
-    len_parsed  = 0
-
-    tagger.parse('')
-    res = tagger.parseToNode(sentence)
-
-    while res:
-
-        len_parsed += len(res.surface)
-        
-        if res.surface != '':
-
-            nodes.append(res.surface)
-
-        res = res.next 
-
-    assert(len_parsed == len(sentence)) 
-    
-    return nodes
+def clear_():
+    """
+    Function to clear the console
+    """
+    os.system('cls' if os.name == 'nt' else 'clear')

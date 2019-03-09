@@ -52,8 +52,8 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
     delimiter = token_tagger.stop_token  
 
     # Parse template phrases
-    nodes_correct, _ = languages.parse_sentence(corrected, configx.CONST_PARSER, delimiter)
-    nodes_error, pos_error = languages.parse_sentence(errored, configx.CONST_PARSER, delimiter)
+    nodes_correct, _ = languages.parse_full(corrected, configx.CONST_PARSER, delimiter)
+    nodes_error, pos_error = languages.parse_full(errored, configx.CONST_PARSER, delimiter)
 
     # Obtain 2D part-of-speech matrix for errored phrase
     # Of form (n, k), where n is the length of the phrase, 
@@ -102,7 +102,7 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
             template_sentence = template_sentence.split(',')
             temp = ''.join(template_sentence)
 
-            nodes_template, pos_template = languages.parse_sentence(temp, configx.CONST_PARSER, delimiter)
+            nodes_template, pos_template = languages.parse_full(temp, configx.CONST_PARSER, delimiter)
 
             # Obtain 2D part-of-speech matrix for template sentence
             pos_template = np.array(list(languages.parse_node_matrix(pos_token, pos_taggers) \

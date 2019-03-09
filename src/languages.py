@@ -399,10 +399,10 @@ def resolve_classification(classification):
     return (class1, class2, form1, form2, form3)
 
 
-def parse_sentence(sentence, tagger, delimiter, remove_delimiter = False):
+def parse_full(sentence, tagger, delimiter, remove_delimiter = False):
     """
-    Function to parse a given raw string into integer indices using a given Mecab.Tagger() and Language class instance
-    
+    Function to parse a given raw string into raw token and part-of-string tags using a given Mecab.Tagger()
+
     Args:
         sentence (str): Input string
         tagger (Language): Language class instance used to index individual tokens
@@ -410,15 +410,21 @@ def parse_sentence(sentence, tagger, delimiter, remove_delimiter = False):
         remove_delimiter (bool, optional): Determines whether or not the delimiter token is retained in output
     
     Returns:
-        TYPE: Description
+        (tuple): A tuple containing the following:
+            nodes (arr): A list of strings, correspoding to the tokens of the raw sentence
+            pos (arr): A lsit of list of strings, corresponding to the part-of-speech tag of each index for the raw sentence
     """
-    nodes = list()
-    pos = [list(), list(), list(), list(), list()]
+    if remove_delimiter:
+
+        sentence = sentence.replace(delimiter, '')
 
     sentence = sentence.strip()
     sentence = sentence.replace(' ', '')
 
     len_parsed = 0
+
+    nodes = list()
+    pos = [list(), list(), list(), list(), list()]
 
     tagger.parse('')
     res = tagger.parseToNode(sentence)
@@ -427,7 +433,7 @@ def parse_sentence(sentence, tagger, delimiter, remove_delimiter = False):
 
         len_parsed += len(res.surface)
         
-        if res.surface != '' and not (res.surface == delimiter and remove_delimiter == True):
+        if res.surface != '':
 
             c = res.feature.split(",")
             c = resolve_classification(c)  
@@ -443,6 +449,49 @@ def parse_sentence(sentence, tagger, delimiter, remove_delimiter = False):
     assert(len_parsed == len(sentence))  
 
     return nodes, pos
+
+
+def parse(sentence, tagger, delimiter, remove_delimiter = False):
+    """
+    Function to parse a given raw string into raw tokens using a given Mecab.Tagger()
+    
+    Args:
+        sentence (str): Input string
+        tagger (Language): Language class instance used to index individual tokens
+        delimiter (str): Sentence end delimiter (i.e. period) 
+        remove_delimiter (bool, optional): Determines whether or not the delimiter token is retained in output
+    
+    Returns:
+        nodes(arr): A list of strings, correspoding to the tokens of the raw sentence
+    """
+    if remove_delimiter:
+
+        sentence = sentence.replace(delimiter, '')
+
+    sentence = sentence.strip()
+    sentence = sentence.replace(' ', '')
+
+    len_parsed  = 0
+
+    nodes = list()
+
+    tagger.parse('')
+    res = tagger.parseToNode(sentence)
+
+    while res:
+
+        len_parsed += len(res.surface)
+        
+        if res.surface != '':
+
+            nodes.append(res.surface)
+
+        res = res.next 
+
+    assert(len_parsed == len(sentence)) 
+    
+    return nodes
+
 
 
 def load_default_languages(load_dir = configx.CONST_DEFAULT_LANGUAGE_DIRECTORY, 
@@ -558,7 +607,6 @@ def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
     node_prefix = os.path.join(save_dir, node_save_prefix)
     pos_prefix = os.path.join(save_dir, pos_save_prefix)
 
-    print("")
     token_tagger.sort()
     token_tagger.save_dicts(node_prefix)
 
@@ -566,6 +614,7 @@ def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
 
         pos_taggers[i].sort()
         pos_taggers[i].save_dicts(pos_prefix + str(i))
+        
     print("\n\tCompleted...\n")
 
 
