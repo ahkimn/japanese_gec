@@ -1,0 +1,5 @@
+Corpus Size: 7489 .txt files
+
+Original number of sentences: 12298836
+Number of unique sentences: 7150203
+Number of sentences  with length < 30: 4646419...
