@@ -41,20 +41,29 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
     # Obtain directory of dataset
     base_dir = os.path.join(data_directory, dataset_name)
 
+    rules = []
+
+    with open(os.path.join(base_dir, "rules.csv"), "r") as f:
+
+        reader= csv.reader(f, delimiter = 'f')
+
+        for line in reader:
+
+            rules.append(line[0].split(',')[1])
+
     # Iterate through each of the rules within the dataset
-    for sub_dir in os.listdir(base_dir):
+    for sub_dir in rules:
 
         s_dir = os.path.join(base_dir, sub_dir)
 
         if os.path.isdir(s_dir):
 
-            try:
+            try:                
 
                 rule_data_files = list()
                 rule_pair_counts = list()
 
                 # Rules should be in folders with integer names
-                i = int(sub_dir)
                 sub_rule_counts.append(0)
 
                 # Check all files within rule directory
@@ -95,7 +104,7 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
     return data_files, sub_rule_counts, pair_counts
 
 
-def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1, max_per_rule=1000, min_per_rule=500):
+def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1, max_per_rule=5000, min_per_rule=100):
     """
     Function to generate a full dataset (training/validation/test) from a given set of data files
     
@@ -154,8 +163,10 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
 
         n_subrules = len(data_files[i])
 
+        training_ratio = 0.8
+
         # Obtain a representative sample of data over sub-rules
-        n_per = representative_sample(pair_counts[i], min(max_per_rule, sum(pair_counts[i])))
+        n_per = representative_sample(pair_counts[i], min(max_per_rule, sum(pair_counts[i])) * training_ratio)
 
         for j in range(n_subrules):
 
@@ -286,8 +297,8 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, director
         correct_sentence = sentence_list[j][1]
 
         # Extract tokenized data for each sentence
-        error_tokens, _ = languages.parse_sentence(error_sentence, configx.CONST_PARSER, None)
-        correct_tokens, _ = languages.parse_sentence(correct_sentence, configx.CONST_PARSER, None)
+        error_tokens, _ = languages.parse_full(error_sentence, configx.CONST_PARSER, None)
+        correct_tokens, _ = languages.parse_full(correct_sentence, configx.CONST_PARSER, None)
 
         # Convert tokens into integers
         error_data.append(source_tagger.parse_sentence(error_tokens))
@@ -330,7 +341,6 @@ def save_dataset(data_directory = configx.CONST_TEXT_OUTPUT_DIRECTORY,
         source_language_dir (str, optional): Relative path of save directory for the source Language class instances
         target_language_dir (str, optional): Relative path of save directory for the target Language class instances
     """
-
     # Obtain files for dataset
     data_files, rule_counts, pair_counts = get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_type)
     
@@ -371,7 +381,7 @@ def save_dataset(data_directory = configx.CONST_TEXT_OUTPUT_DIRECTORY,
         update_languages.update_languages(token_tagger, pos_taggers, test_rule, target_language_dir, False)
 
      # Location to save the corpus data
-    corpus_save_dir = os.path.join(data_directory, corpus_output_dir)
+    corpus_save_dir = os.path.join(corpus_output_dir)
     
     if not os.path.isdir(corpus_save_dir):
         util.mkdir_p(corpus_save_dir)

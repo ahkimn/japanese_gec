@@ -17,6 +17,8 @@ import psutil
 
 import numpy as np
 
+from termcolor import colored
+
 from . import configx
 from . import generate
 from . import languages
@@ -780,27 +782,51 @@ def convert_csv_rules(n_max = -1,
 
             print("\n\tGenerating new sentence pairs...")
             print(configx.BREAK_SUBLINE)
-            error_examples, _, _ = \
+            paired_data, coloured_data = \
                 generate.create_errored_sentences(unique_matrices, token_tagger, pos_taggers, 
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
 
-            # print(error_examples)
+            # print('')
+            # display = ''
 
-            for i in range(len(error_examples)):
+            # while display != 'n' and display != 'y':
 
-                for j in range(5):
+            #     display = input('\tWould you like to display sample paired data? (y/n): ')
 
-                    if j < len(error_examples[i]):
+            # if display == 'y':
 
-                        print(error_examples[i][j])
+            #     for i in range(len(coloured_data)):
 
-            raise
+            #         print('\tSub-rule: %d' % (i + 1))
 
-            # print("\tSaving new data...")
-            # save.save_rule(corrected_sentence, error_sentence, s_examples, error_examples, iterations, rule_text)
+            #         for j in range(len(coloured_data[i])):
 
-            # print("\tPaired data saved successfully...\n")
+            #             print(configx.BREAK_HALFLINE)
+            #             print('\t\t%s' % (coloured_data[i][j][0]))
+            #             print('\t\t%s' % (coloured_data[i][j][1]))
+
+            # print("\n\tRule: %s --> %s" % (corrected_sentence, error_sentence))
+
+            # print('')
+            # validate = ''
+
+            # while validate != 'n' and validate != 'y':
+
+            #     validate = input('\tWould you like to save this data? (y/n): ')
+
+            # if validate == 'y':
+
+                # print("\tSaving new data...")
+                # save.save_rule(corrected_sentence, error_sentence, paired_data, iterations)
+
+                # print("\tPaired data saved successfully...\n")
+
+            
+            print("\tSaving new data...")
+            save.save_rule(corrected_sentence, error_sentence, paired_data, iterations)
+
+            print("\tPaired data saved successfully...\n")
 
             iterations += 1
 

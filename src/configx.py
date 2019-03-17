@@ -37,7 +37,7 @@ CONST_CORPUS_TEXT_PREFIX = "scrape"
 CONST_CORPUS_TEXT_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_CORPUS_TEXT_PREFIX)
 CONST_BCCWJ_NT_TEXT_PREFIX = "bccwj-nt"
 CONST_BCCWJ_NT_TEXT_DIRECTORY = os.path.join(CONST_DATA_DIRECTORY, CONST_BCCWJ_NT_TEXT_PREFIX)
-CONST_CORPUS_TEXT_FILETYPE = ".txt"
+CONST_CORPUS_TEXT_FILETYPE = ".csv"
 
 '''
 Database file constants
@@ -66,13 +66,13 @@ Generated text file constants
 # Folder to store text file outputs
 CONST_TEXT_OUTPUT_DIRECTORY = "generated_text"
 # Essentially the name of the dataset (within /CONST_TEXT_OUTPUT_DIRECTORY)
-CONST_TEXT_OUTPUT_PREFIX = "d_15"
+CONST_TEXT_OUTPUT_PREFIX = "test_set"
 # Output folder of dataset corpus within CONST
-CONST_CORPUS_SAVE_DIRECTORY = "init_15"
+CONST_CORPUS_SAVE_DIRECTORY = "corpus"
 
 # Prefix/Suffix for each text file (within /CONST_TEXT_OUTPUT_DIRECTORY/CONST_TEXT_OUTPUT_PREFIX)
 CONST_SENTENCE_FILE_PREFIX = "type"
-CONST_SENTENCE_FILE_SUFFIX = ".txt"
+CONST_SENTENCE_FILE_SUFFIX = ".csv"
 
 CONST_ERRORED_PREFIX = "error"
 CONST_CORRECT_PREFIX = "correct"
@@ -116,7 +116,7 @@ CONST_MAX_SEARCH_TOKEN_INDEX = 5000
 '''
 Specific files
 '''
-CONST_RULE_CONFIG = "pair_data.csv"
+CONST_RULE_CONFIG = "valid.csv"
 
 '''
 Constants for Languages
@@ -170,7 +170,7 @@ CONST_WORD_2_VEC_SAVE_DIRECTORY = os.path.join(CONST_MODEL_SAVE_DIRECTORY, CONST
 CONST_WORD_2_VEC_MODEL_NAME = "w2v.model"
 
 # Only select nouns, verbs, or adjectives
-CONST_WORD_2_VEC_CANDIDATES = ['名詞', '動詞', '形容詞']
+CONST_WORD_2_VEC_CANDIDATES = ['名詞', '動詞', '形容詞', '副詞']
 
 # Output directory for saved files (e.g. from interactive())
 CONST_WORD_2_VEC_OUTPUT_DIRECTORY = os.path.join(CONST_TEXT_OUTPUT_DIRECTORY, 'w2v')

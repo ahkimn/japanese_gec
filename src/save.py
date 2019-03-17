@@ -2,45 +2,47 @@ import os
 import csv
 from . import configx
 
-def save_rule(corrected_sentence, error_sentence, correct_examples,  error_examples, index, rule_text, sub_folder=configx.CONST_TEXT_OUTPUT_PREFIX):
+def save_rule(corrected_sentence, error_sentence, paired_data, n):
 
-	save_folder = os.path.join(configx.CONST_TEXT_OUTPUT_DIRECTORY, sub_folder)
+	save_folder = os.path.join(configx.CONST_TEXT_OUTPUT_DIRECTORY, configx.CONST_TEXT_OUTPUT_PREFIX)
+
+	print("\t\tSave directory: %s" % save_folder)
 
 	if not os.path.isdir(save_folder):
 		os.mkdir(save_folder)
 
-	rule_dir = os.path.join(save_folder, str(index))
+	# Create text-file named with rule format and containing rule text...
+	rule_text = corrected_sentence + "ー" + error_sentence
+	
+	with open(os.path.join(save_folder, "rules.csv"), "a+") as f:
+
+		csv_writer = csv.writer(f, delimiter=',')
+		csv_writer.writerow([str(n), rule_text])
+		f.close()
+
+	rule_dir = os.path.join(save_folder, rule_text)
 
 	if not os.path.isdir(rule_dir):
 		os.mkdir(rule_dir)
 
-	# Create text-file named with rule format and containing rule text...
-	rule_text_file = corrected_sentence + "・・・" + error_sentence + ".txt"
-	with open(os.path.join(rule_dir, rule_text_file), "w+") as f:
+	# Iterate over each subrule
+	for i in range(len(paired_data)):
 
-		csv_writer = csv.writer(f, delimiter=',')
-		csv_writer.writerow(rule_text)
-		f.close()
-
-	assert(len(error_examples) == len(correct_examples))
-
-	for i in range(len(error_examples)):
-
-		assert(len(error_examples[i]) == len(correct_examples[i]))
-		file_name = configx.CONST_TEXT_OUTPUT_PREFIX + str(i + 1) + ".txt"
+		file_name = configx.CONST_SENTENCE_FILE_PREFIX + str(i + 1) + configx.CONST_SENTENCE_FILE_SUFFIX
 		
 		with open(os.path.join(rule_dir, file_name), "w+") as f:
 
 			csv_writer = csv.writer(f, delimiter=',')
 
-			for j in range(len(error_examples[i])):
+			for j in range(len(paired_data[i])):
 
-				if not "UNKNOWN" in error_examples[i][j] and not "UNKNOWN" in correct_examples[i][j]:
-					csv_writer.writerow([error_examples[i][j], correct_examples[i][j]])
+				if not "UNKNOWN" in paired_data[i][j][0] and not "UNKNOWN" in paired_data[i][j][1]:
+					csv_writer.writerow([paired_data[i][j][0], paired_data[i][j][1]])
 
-				# else:
-				# 	print(error_examples[i][j])
-				# 	print(correct_examples[i][j])
-				# 	print("=============")
+				else:
+					print(paired_data[i][j][0])
+					print(paired_data[i][j][1])
+					print("=============")
 
 		f.close()
+

@@ -35,7 +35,7 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
 
             sentence = sentence_list[j][1]       
 
-        tokens, pos_tags = languages.parse_sentence(sentence, configx.CONST_PARSER, None)
+        tokens, pos_tags = languages.parse_full(sentence, configx.CONST_PARSER, None)
 
         # Update token tagger
         token_tagger.add_sentence(tokens)
