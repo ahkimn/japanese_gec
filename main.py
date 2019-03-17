@@ -16,7 +16,7 @@ def main():
 	# database.construct_default_database(n_files=n_files)
 	# database.clean_default_database(max_length = 30)
 
-	convert.convert_csv_rules(n_max=10000, n_search=1000000)
+	# convert.convert_csv_rules(n_max=10000, n_search=1000000)
 
 	# languages.load_default_languages()
 	load.save_dataset()

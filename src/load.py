@@ -163,7 +163,7 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
 
         n_subrules = len(data_files[i])
 
-        training_ratio = 0.8
+        training_ratio = 1
 
         # Obtain a representative sample of data over sub-rules
         n_per = representative_sample(pair_counts[i], min(max_per_rule, sum(pair_counts[i])) * training_ratio)
@@ -272,7 +272,7 @@ def representative_sample(counts, max_total):
     return sample_counts
 
 
-def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, directory):
+def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, directory, raw_text=True):
     """
     Save dataset files as corpus text
     
@@ -300,10 +300,17 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, director
         error_tokens, _ = languages.parse_full(error_sentence, configx.CONST_PARSER, None)
         correct_tokens, _ = languages.parse_full(correct_sentence, configx.CONST_PARSER, None)
 
-        # Convert tokens into integers
-        error_data.append(source_tagger.parse_sentence(error_tokens))
-        correct_data.append(target_tagger.parse_sentence(correct_tokens))
-    
+        if raw_text:
+
+            error_data.append(error_tokens)
+            correct_data.append(correct_tokens)
+
+        else:
+
+            # Convert tokens into integers
+            error_data.append(source_tagger.parse_sentence(error_tokens))
+            correct_data.append(target_tagger.parse_sentence(correct_tokens))
+            
     assert(len(error_data) == len(correct_data))
 
     error_file = os.path.join(directory, prefix + "_" + configx.CONST_ERRORED_PREFIX)
@@ -346,39 +353,40 @@ def save_dataset(data_directory = configx.CONST_TEXT_OUTPUT_DIRECTORY,
     
     # Generate dataset
     train_data, validation_data, test_data, full_validation, full_test = generate_dataset(data_files, rule_counts, pair_counts)
+    print("HERE")
 
     # Generate and update source languages
-    token_tagger = languages.Language(True)
-    pos_taggers = [languages.Language(), languages.Language(), languages.Language(), languages.Language(), languages.Language(True)]
+    # token_tagger = languages.Language(True)
+    # pos_taggers = [languages.Language(), languages.Language(), languages.Language(), languages.Language(), languages.Language(True)]
 
-    if not os.path.isdir(source_language_dir):
-        util.mkdir_p(source_language_dir)
+    # if not os.path.isdir(source_language_dir):
+    #     util.mkdir_p(source_language_dir)
 
-    # Update languages with new tokens from training data
-    update_languages.update_languages(token_tagger, pos_taggers, train_data, source_language_dir)
+    # # Update languages with new tokens from training data
+    # update_languages.update_languages(token_tagger, pos_taggers, train_data, source_language_dir)
 
-    # Update languages with new tokens from validation data
-    for validation_rule in validation_data:
-        update_languages.update_languages(token_tagger, pos_taggers, validation_rule, source_language_dir)
+    # # Update languages with new tokens from validation data
+    # for validation_rule in validation_data:
+    #     update_languages.update_languages(token_tagger, pos_taggers, validation_rule, source_language_dir)
 
-    for test_rule in test_data:
-        update_languages.update_languages(token_tagger, pos_taggers, test_rule, source_language_dir)
+    # for test_rule in test_data:
+    #     update_languages.update_languages(token_tagger, pos_taggers, test_rule, source_language_dir)
 
-    token_tagger = languages.Language(True)
-    pos_taggers = [languages.Language(), languages.Language(), languages.Language(), languages.Language(), languages.Language(True)]
+    # token_tagger = languages.Language(True)
+    # pos_taggers = [languages.Language(), languages.Language(), languages.Language(), languages.Language(), languages.Language(True)]
 
-    if not os.path.isdir(target_language_dir):
-        util.mkdir_p(target_language_dir)
+    # if not os.path.isdir(target_language_dir):
+    #     util.mkdir_p(target_language_dir)
 
-    # Update languages with new tokens from training data
-    update_languages.update_languages(token_tagger, pos_taggers, train_data, target_language_dir, False)
+    # # Update languages with new tokens from training data
+    # update_languages.update_languages(token_tagger, pos_taggers, train_data, target_language_dir, False)
 
-    # Update languages with new tokens from validation data
-    for validation_rule in validation_data:
-        update_languages.update_languages(token_tagger, pos_taggers, validation_rule, target_language_dir, False)
+    # # Update languages with new tokens from validation data
+    # for validation_rule in validation_data:
+    #     update_languages.update_languages(token_tagger, pos_taggers, validation_rule, target_language_dir, False)
 
-    for test_rule in test_data:
-        update_languages.update_languages(token_tagger, pos_taggers, test_rule, target_language_dir, False)
+    # for test_rule in test_data:
+    #     update_languages.update_languages(token_tagger, pos_taggers, test_rule, target_language_dir, False)
 
      # Location to save the corpus data
     corpus_save_dir = os.path.join(corpus_output_dir)
@@ -389,12 +397,23 @@ def save_dataset(data_directory = configx.CONST_TEXT_OUTPUT_DIRECTORY,
     token_tagger_source, pos_taggers_source = languages.load_default_languages(source_language_dir)
     token_tagger_target, pos_taggers_target = languages.load_default_languages(target_language_dir)
 
+    print("\nSaving training corpus data...")
     save_as_corpus(token_tagger_source, token_tagger_target, train_data, "train", corpus_save_dir)
+    
+    print("\nSaving full validation corpus data...")
     save_as_corpus(token_tagger_source, token_tagger_target, full_validation, "validation_full", corpus_save_dir)
+    
+    print("\nSaving full test corpus data...")
     save_as_corpus(token_tagger_source, token_tagger_target, full_test, "test_full", corpus_save_dir)
 
+    print('')
     for j in range(len(validation_data)):
+
+        print("Saving validation data for rule: %d" % (j + 1))
         save_as_corpus(token_tagger_source, token_tagger_target, validation_data[j], "validation_" + str(j), corpus_save_dir)
 
+    print('')
     for j in range(len(test_data)):
+
+        print("Saving test data for rule: %d" % (j + 1))
         save_as_corpus(token_tagger_source, token_tagger_target, test_data[j], "test_" + str(j), corpus_save_dir)
