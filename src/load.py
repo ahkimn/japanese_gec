@@ -104,7 +104,7 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
     return data_files, sub_rule_counts, pair_counts
 
 
-def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1, max_per_rule=5000, min_per_rule=100):
+def generate_dataset(data_files, rule_counts, pair_counts, training_ratio=0.5, validation_ratio=0.1, max_per_rule=5000, min_per_rule=100):
     """
     Function to generate a full dataset (training/validation/test) from a given set of data files
     
@@ -112,7 +112,7 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
         data_files (arr): Array containing all data files associated with dataset
         rule_counts (arr): Array containing number of sub-rules per each rule
         pair_counts (arr): Array of arrays containing number of sentence pairs per each sub-rule
-        validation_ratio (float, optional): Percentage of sentences going to validation set (relative to training size)
+        validation_ratio (float, optional): Percentage of sentences going to validation set (relative to test size)
         max_per_rule (int, optional): Maximum number of training samples per rule
         min_per_rule (int, optional): Minimum number of training samples per rule (all rules with fewer are discarded)
     
@@ -158,19 +158,21 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
 
     for i in range(n_valid_rules):
 
+        prev_length = len(train_data)
+
+        print("RULE: %d" % (i + 1))
+
         r_validation = list()
         r_test = list()
 
         n_subrules = len(data_files[i])
 
-        training_ratio = 1
-
         # Obtain a representative sample of data over sub-rules
-        n_per = representative_sample(pair_counts[i], min(max_per_rule, sum(pair_counts[i])) * training_ratio)
+        n_per = representative_sample(pair_counts[i], int(training_ratio * min(max_per_rule, sum(pair_counts[i]))))
 
         for j in range(n_subrules):
 
-            d_train, d_validation, d_test = sample_from_csv(data_files[i][j], n_per[j], validation_ratio)
+            d_train, d_validation, d_test = sample_from_csv(data_files[i][j], n_per[j], validation_ratio, n_per[j] * 2.5)
 
             train_data += d_train
 
@@ -182,6 +184,8 @@ def generate_dataset(data_files, rule_counts, pair_counts, validation_ratio=0.1,
 
         validation_data.append(r_validation)
         test_data.append(r_test)
+
+        print("Lengths: %d, %d, %d" % (len(train_data) - prev_length, len(r_validation), len(r_test)))
 
     return train_data, validation_data, test_data, full_validation, full_test
 

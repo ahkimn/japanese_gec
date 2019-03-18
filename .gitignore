@@ -8,3 +8,4 @@ rules/
 scrape/
 scrape_src/
 src/deprecated/
+old_corpus/
