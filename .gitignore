@@ -9,3 +9,5 @@ scrape/
 scrape_src/
 src/deprecated/
 old_corpus/
+input/
+model/
