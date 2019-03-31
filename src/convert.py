@@ -787,6 +787,8 @@ def convert_csv_rules(n_max = -1,
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
 
+            # TODO Insert code that will make (correct, correct) sentence pairings
+
             # print('')
             # display = ''
 

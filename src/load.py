@@ -276,7 +276,7 @@ def representative_sample(counts, max_total):
     return sample_counts
 
 
-def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, directory, raw_text=True):
+def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, directory, raw_text=True, bpe=False):
     """
     Save dataset files as corpus text
     
@@ -304,17 +304,24 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, prefix, director
         error_tokens, _ = languages.parse_full(error_sentence, configx.CONST_PARSER, None)
         correct_tokens, _ = languages.parse_full(correct_sentence, configx.CONST_PARSER, None)
 
-        if raw_text:
+        if bpe:
 
-            error_data.append(error_tokens)
-            correct_data.append(correct_tokens)
+            # TODO
+            pass
 
         else:
 
-            # Convert tokens into integers
-            error_data.append(source_tagger.parse_sentence(error_tokens))
-            correct_data.append(target_tagger.parse_sentence(correct_tokens))
-            
+            if raw_text:
+
+                error_data.append(error_tokens)
+                correct_data.append(correct_tokens)
+
+            else:
+
+                # Convert tokens into integers
+                error_data.append(source_tagger.parse_sentence(error_tokens))
+                correct_data.append(target_tagger.parse_sentence(correct_tokens))
+                
     assert(len(error_data) == len(correct_data))
 
     error_file = os.path.join(directory, prefix + "_" + configx.CONST_ERRORED_PREFIX)
