@@ -1,10 +1,9 @@
-from src import load
-from src import languages
-from src import convert
-from src import database
-from src import w2v
-from src import configx
+import sys
+from src.process import *
 
+def process_csv(input_file, output_source, output_target):
+
+	pre_process_csv(input_file, output_source, output_target)
 
 def main():
 
@@ -19,17 +18,25 @@ def main():
 	# convert.convert_csv_rules(n_max=10000, n_search=1000000)
 
 	# languages.load_default_languages()
-	load.save_dataset()
+	# load.save_dataset()
 
 	pass
 
-	
-
-
-
-
-
-
 if __name__ == '__main__':
 
-	main()
+   # Accept input in form of (function_name, param1, param2, ..., paramX)
+   params = []
+
+   if len(sys.argv) > 2:
+
+      for x in range(2, len(sys.argv)):
+
+         params.append(sys.argv[x])
+
+   if len(params) > 0:
+
+      globals()[sys.argv[1]](*params)
+
+   else:
+
+      globals()[sys.argv[1]]()

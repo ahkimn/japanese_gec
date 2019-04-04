@@ -1,0 +1,26 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "8aea3e1e68774b1666e4d249bd45c3faa61e09bf92606970fcc206e0667905bf"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "3.7"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {
+        "mecab-python3": {
+            "editable": true,
+            "git": "https://github.com/SamuraiT/mecab-python3",
+            "ref": "d561f76fc3f381c1d5360ee555a985679feee191"
+        }
+    },
+    "develop": {}
+}

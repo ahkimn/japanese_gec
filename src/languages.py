@@ -481,7 +481,7 @@ def parse(sentence, tagger, delimiter, remove_delimiter = False):
     while res:
 
         len_parsed += len(res.surface)
-        
+      
         if res.surface != '':
 
             nodes.append(res.surface)

@@ -17,6 +17,9 @@ def pre_process_csv(input_file, output_source, output_target):
 			source_sentence = pair[0]
 			target_sentence = pair[1]
 
+			source_sentence = source_sentence.strip()
+			target_sentence = target_sentence.strip()
+
 			source_tokens = languages.parse(source_sentence, configx.CONST_PARSER, None)
 			target_tokens = languages.parse(target_sentence, configx.CONST_PARSER, None)
 

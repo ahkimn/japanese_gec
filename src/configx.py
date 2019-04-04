@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Filename: load.py
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
