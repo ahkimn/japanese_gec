@@ -478,15 +478,22 @@ def parse(sentence, tagger, delimiter, remove_delimiter = False):
     tagger.parse('')
     res = tagger.parseToNode(sentence)
 
+    print(sentence)
+
     while res:
 
         len_parsed += len(res.surface)
-      
+
+        print(res.surface)
+
         if res.surface != '':
 
             nodes.append(res.surface)
 
         res = res.next 
+
+    # print(len_parsed)
+    # print(len(sentence))
 
     assert(len_parsed == len(sentence)) 
     

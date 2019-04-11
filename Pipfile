@@ -7,6 +7,7 @@ verify_ssl = true
 
 [packages]
 mecab-python3 = {editable = true,git = "https://github.com/SamuraiT/mecab-python3"}
+numpy = "*"
 
 [requires]
 python_version = "3.7"
