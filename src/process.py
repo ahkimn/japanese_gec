@@ -25,16 +25,17 @@ def pre_process_csv(input_file, output_source, output_target):
 				target_sentence = pair[1]
 
 			else:
+				print(pair)
 
-				raise Exception("Pair contains more than two sentences")
+				print("WARNING: MORE THAN TWO SENTENCES IN LINE")
+				target_sentence = pair[1]
 
 			source_sentence = source_sentence.strip()
 			target_sentence = target_sentence.strip()
 
-			print(source_sentence)
-			print(target_sentence)
+			if target_sentence == '':
+				target_sentence = source_sentence
 
-			print("SHIT")
 
 			source_tokens = languages.parse(source_sentence, configx.CONST_PARSER, None)
 			target_tokens = languages.parse(target_sentence, configx.CONST_PARSER, None)
@@ -47,9 +48,9 @@ def pre_process_csv(input_file, output_source, output_target):
 	source_file = open(output_source, "w+")
 	target_file = open(output_target, "w+")
 
-	for i in range(len(source_text)):
+	print(output_source)
 
-		print("HERE")
+	for i in range(len(source_text)):
 
 		source_file.write(source_text[i])
 		source_file.write(os.linesep)

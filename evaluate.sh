@@ -13,13 +13,13 @@ for MODELNAME in "${arr[@]}"; do
 
 	for FILEPATH in $(find $DIR -type f -name "*$EXT"); do
 
+		FILENAME="${FILEPATH##*/}"
+		FILENAME="${FILENAME%.*}"	
+
 		OUTPUT_SOURCE="$FILENAME.source"
 		OUTPUT_TARGET="$FILENAME.target"
 
-		python main.py process_csv $FILEPATH $OUTPUT_SOURCE $OUTPUT_TARGET
-
-		# FILENAME="${FILEPATH##*/}"
-		# FILENAME="${FILENAME%.*}"		
+		python main.py process_csv $FILEPATH $OUTPUT_SOURCE $OUTPUT_TARGET	
 
 		# fairseq-preprocess --source-lang source --target-lang target --testpref temp/data --destdir temp \
 		# --tgtdict $DIR_DATA/processed/dict.target.txt --srcdict $DIR_DATA/processed/dict.source.txt
