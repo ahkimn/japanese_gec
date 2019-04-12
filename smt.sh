@@ -28,8 +28,50 @@
  #   filtered mert-work/moses.ini input/test.source \
  #   -Binarizer ~/git/mosesdecoder/bin/processPhraseTableMin
 
+# mkdir -p comparison/test
+# mkdir -p comparison/teacher
+# mkdir -p comparison/student
+
  # ~/git/mosesdecoder/bin/moses            \
  #   -f filtered/moses.ini   \
  #   < input/test.source             \
- #   > filtered/gen.out       \
+ #   > comparison/test/smt.out       \
  #   2> gen.log.out 
+
+ # ~/git/mosesdecoder/bin/moses            \
+ #   -f filtered/moses.ini   \
+ #   < input/teacher.source             \
+ #   > comparison/teacher/smt.out       \
+ #   2> gen.log.out 
+
+
+ # ~/git/mosesdecoder/bin/moses            \
+ #   -f filtered/moses.ini   \
+ #   < input/student.source             \
+ #   > comparison/student/smt.out       \
+ #   2> gen.log.out 
+
+  ~/git/mosesdecoder/bin/moses            \
+   -f filtered/moses.ini   \
+   < input/student_same.source             \
+   > comparison/student_same/smt.out       \
+   2> gen.log.out 
+
+    ~/git/mosesdecoder/bin/moses            \
+   -f filtered/moses.ini   \
+   < input/teacher_same.source             \
+   > comparison/teacher_same/smt.out       \
+   2> gen.log.out 
+
+# for i in {1..114}; do
+
+# 	mkdir -p comparison/$i
+
+# 	~/git/mosesdecoder/bin/moses            \
+# 	   -f filtered/moses.ini  -threads all \
+# 	   < input/$i/test.source             \
+# 	   > comparison/$i/smt.out       \
+# 	   2> gen.log.out 
+
+# done
+

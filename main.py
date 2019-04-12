@@ -1,9 +1,25 @@
 import sys
-from src.process import *
+import src.process as process
+import src.evaluate as evaluate
 
 def process_csv(input_file, output_source, output_target):
 
-	pre_process_csv(input_file, output_source, output_target)
+	process.pre_process_csv(input_file, output_source, output_target)
+
+def remove_pairs(input_source, input_target, output_source, output_target, same):
+
+	print(same)
+
+	process.remove_pairs(input_source, input_target, output_source, output_target, bool(int(same)))
+
+def sort_sentences(input_file, output_file):
+
+	process.sort_sentences(input_file, output_file)
+
+def eval_f(reference_file, system_file, top_k, alpha):
+
+	ret = evaluate.eval_f(reference_file, system_file, int(top_k), float(alpha))
+	print(ret)
 
 def main():
 
