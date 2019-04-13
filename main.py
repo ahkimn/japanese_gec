@@ -21,6 +21,11 @@ def eval_f(reference_file, system_file, top_k, alpha):
 	ret = evaluate.eval_f(reference_file, system_file, int(top_k), float(alpha))
 	print(ret)
 
+def eval_binary(reference_file, system_file, top_k):
+
+	ret = evaluate.eval_binary(reference_file, system_file, int(top_k))
+	print(ret)
+
 def main():
 
 	# n_files = -1
