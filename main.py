@@ -1,6 +1,7 @@
 import sys
 import src.process as process
 import src.evaluate as evaluate
+import src.convert as convert
 
 def process_csv(input_file, output_source, output_target):
 
@@ -25,6 +26,10 @@ def eval_binary(reference_file, system_file, top_k):
 
 	ret = evaluate.eval_binary(reference_file, system_file, int(top_k))
 	print(ret)
+
+def find_semantic_pairs():
+
+	convert.find_semantic_pairs()
 
 def main():
 
