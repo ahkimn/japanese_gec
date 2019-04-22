@@ -119,6 +119,7 @@ CONST_MAX_SEARCH_TOKEN_INDEX = 5000
 Specific files
 '''
 CONST_RULE_CONFIG = "valid.csv"
+CONST_SEMANTIC_PAIRS = "semantic_pairs.csv"
 
 '''
 Constants for Languages
