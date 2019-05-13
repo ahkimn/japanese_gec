@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 from . import configx
 from . import languages
@@ -84,6 +85,10 @@ def sort_sentences(input_file, output_file):
 
 				tokens = tokens[2:]
 
+			elif ini[0] == 'P':
+
+				tokens = tokens[1:-1]
+
 			else:
 
 				tokens = tokens[1:]
@@ -102,8 +107,6 @@ def sort_sentences(input_file, output_file):
 	g.close()
 
 def remove_pairs(original_source, original_target, output_source, output_target, same):
-
-	print(same)
 
 	original_source = open(original_source, "r")
 	original_target = open(original_target, "r")
@@ -138,4 +141,191 @@ def remove_pairs(original_source, original_target, output_source, output_target,
 
 	output_source.close()
 	output_target.close()
+
+def filter_probabilities(system_file, probability_file, source_file, reference_file, output_dir):
+
+	token_tagger, _ = languages.load_default_languages(load_dir = configx.CONST_UPDATED_TARGET_LANGUAGE_DIRECTORY)
+
+	f_out = open(system_file, "r")
+	f_prob = open(probability_file, "r")
+
+	f_org = open(source_file, "r")
+	f_ref = open(reference_file, "r")
+
+	sys_out = f_out.readlines()
+	sys_prob = f_prob.readlines()
+
+	_org = f_org.readlines()
+	_ref = f_ref.readlines()
+
+	f_out.close()
+	f_prob.close()
+	f_org.close()
+	f_ref.close()
+
+	assert(len(sys_out) == len(sys_prob))
+
+	completed = 0
+
+	# Probability assigned to correctly outputed token
+	c_probs = list()
+	# Probabilities assigned to incorrectly outputed with form change (diff. from original) (INCORRECT CORRECTION)
+	fc_probs = list()
+	fc_examples = list()
+	# Probabilities assigned to incorrectly outputed tokens where ref is in original (RANDOM SUBSTITUTIONS)
+	sub_probs = list()
+	sub_examples = list()
+	# Probabilities assigned to incorrectly outputed tokens where ref is not in original (INCORRECT)
+	x_probs = list()
+	x_examples = list()
+
+	r_sub_probs = list()
+	r_sub_examples = list()
+
+	n_analyze = len(sys_out)
+	# n_analyze = 20000
+
+	for i in range(n_analyze):
+
+		sys_sentence = list(_token for _token in sys_out[i].strip().split(' '))
+		sys_string = ''.join(sys_sentence)
+		l_probs = list(float(_prob) for _prob in sys_prob[i].strip().split(' '))
+		
+		for j in range(len(l_probs)):
+
+			if abs(l_probs[j]) < 1e-6:
+
+				l_probs[j] = 0
+
+		assert (len(l_probs) == len(sys_sentence))
+
+		org_sentence = list(_token for _token in _org[i].strip().split(' '))	
+		org_string = ''.join(org_sentence)	
+		ref_sentence = list(_token for _token in _ref[i].strip().split(' '))
+		ref_string = ''.join(ref_sentence)
+
+		_, org_pos = languages.parse_full(org_string, configx.CONST_PARSER, None)
+		_, ref_pos = languages.parse_full(ref_string, configx.CONST_PARSER, None)
+		_, sys_pos = languages.parse_full(sys_string, configx.CONST_PARSER, None)
+
+		org_forms = org_pos[-1]
+		ref_forms = ref_pos[-1]
+		sys_forms = sys_pos[-1]
+
+		# No alignment of target/ref (more basic statistic)
+		if len(ref_sentence) != len(sys_sentence):
+
+			continue
+
+		elif len(ref_forms) != len(ref_sentence):
+
+			continue
+
+		elif len(sys_forms) != len(sys_sentence):
+
+			continue
+
+		else:
+
+			completed += 1
+
+			n_tokens = len(ref_sentence)
+
+			for j in range(n_tokens):
+
+				if sys_sentence[j] != ref_sentence[j]:
+
+					if sys_forms[j] in org_forms or sys_forms[j] in ref_forms:
+
+						fc_probs.append(l_probs[j])		
+						fc_examples.append(ref_sentence[j] + "," + sys_sentence[j] + os.linesep)
+
+					else:
+
+						sys_index = token_tagger.parse_node(sys_sentence[j], n_max=10000)
+						org_index = token_tagger.parse_node(org_sentence[j], n_max=10000)
+
+						if org_index == 1 or org_index > 2000:
+
+							r_sub_probs.append(l_probs[j])
+							r_sub_examples.append(ref_sentence[j] + "," + sys_sentence[j] + os.linesep)
+
+
+						elif ref_forms[j] in org_forms:
+
+							sub_probs.append(l_probs[j])
+							sub_examples.append(ref_sentence[j] + "," + sys_sentence[j] + os.linesep)
+
+						else:
+
+							x_probs.append(l_probs[j])
+							x_examples.append(ref_sentence[j] + "," + sys_sentence[j] + os.linesep)		
+
+				else:
+
+					c_probs.append(l_probs[j])
+
+
+
+	# Save example pairs:
+	_f = open(os.path.join(output_dir, "form_change.csv"), "w+")
+	_f.writelines(fc_examples)
+	_f.close()
+	_f = open(os.path.join(output_dir, "substitution.csv"), "w+")
+	_f.writelines(sub_examples)
+	_f.close()
+	_f = open(os.path.join(output_dir, "rare_substitution.csv"), "w+")
+	_f.writelines(r_sub_examples)
+	_f.close()
+	_f = open(os.path.join(output_dir, "other.csv"), "w+")
+	_f.writelines(x_examples)
+	_f.close()
+
+	c_probs = np.array(c_probs)
+	fc_probs = np.array(fc_probs)
+	sub_probs = np.array(sub_probs)
+	x_probs = np.array(x_probs)
+
+	_f = open(os.path.join(output_dir, "out.log"), "w+")
+	wl = list()
+
+
+	arrays = [c_probs, fc_probs, sub_probs, r_sub_probs, x_probs]
+	names = ["Correct Tokens", "Form Changes", "Incorrect Substitutions", "Rare Substitutions", "Other"]	
+	percentiles = np.arange(0, 100.0, 2.0)
+
+	for i in range(len(arrays)):
+
+		array = arrays[i]
+		name = names[i]
+
+		_str = "Array Data: %s\n===========================" % (name)
+		wl.append(_str)
+		print(_str)
+
+		_str = "\n\tCount: %2d" % (len(array))
+		wl.append(_str)
+		print(_str)
+
+		_str = "\nPercentiles: "
+		wl.append(_str)
+		print(_str)
+
+		arr_percentiles = np.percentile(array, percentiles)
+
+		print()
+		for k in range(len(percentiles)):
+			_str = "\t%2d: %4f" % (percentiles[k], arr_percentiles[k])
+			wl.append(_str)
+			print(_str)
+
+		wl.append("\n\n")
+
+	_f.writelines(wl)
+	_f.close()
+
+
+
+
+	
 
