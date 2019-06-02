@@ -1,6 +1,10 @@
 __pycache__/
+comparison/
+corpus/
 filtered/
 generated_text/
+input/
+input_sourced/
 languages/
 lm/
 mert-work/
@@ -9,9 +13,9 @@ output/
 raw_data/
 raw_input/
 raw_output/
-rules/
 scrape/
 scrape_src/
+smt/
 src/deprecated/
 temp/
 
