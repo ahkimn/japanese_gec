@@ -556,6 +556,7 @@ def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
     print(configx.BREAK_LINE)
     file_list = util.get_files(data_dir, file_type, n_files)
 
+
     print("Found %d files...\n" % len(file_list) )
 
     token_tagger = Language(True)
@@ -584,7 +585,7 @@ def compile_default_languages(data_dir = configx.CONST_CORPUS_TEXT_DIRECTORY,
 
                 sentence = sentences[i].strip()
 
-                nodes, pos = parse_sentence(sentence, configx.CONST_PARSER, delimiter)
+                nodes, pos = parse_full(sentence, configx.CONST_PARSER, delimiter)
 
                 token_tagger.add_sentence(nodes)
 

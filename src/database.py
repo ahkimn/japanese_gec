@@ -80,7 +80,7 @@ def get_maximum_length(file_list, delimiter):
     return n_max, n_sentences
 
 
-def construct_database(data_dir, file_type, n_files, language_dir):
+def construct_database(data_dir, file_type, n_files, language_dir, maximum_length=50):
     """
     Function to process a set of corpus text files into numpy arrays containing the tokenized and part-of-speech information of each sentence
     
@@ -107,7 +107,16 @@ def construct_database(data_dir, file_type, n_files, language_dir):
 
     delimiter = node_tagger.stop_token
 
-    n_max, n_sentences = get_maximum_length(file_list, delimiter)
+    # Very inefficient -_-
+    # Should append to end of token_matrix and pos_matrix dynamically
+    found_max, n_sentences = get_maximum_length(file_list, delimiter)
+
+    n_max = maximum_length
+
+    if (maximum_length <= 0):
+
+        n_max = found_max
+
     n_pos_taggers = len(pos_taggers)
 
     # Initialize arrays to store data
@@ -141,31 +150,50 @@ def construct_database(data_dir, file_type, n_files, language_dir):
                 indices = node_tagger.parse_sentence(nodes)
                 n_nodes = len(indices)
 
-                # Add SOS token and then copy index values to upper slice of token_matrix
-                token_matrix[n_processed, 0, 0] = node_tagger.start_index
-                token_matrix[n_processed, 1:1 + n_nodes, 0] = indices[:]
+                if n_nodes > n_max:
 
-                # Copy form indices from last part-of-speech tagger
-                form_indices = pos_taggers[-1].parse_sentence(pos[-1])
+                    continue
 
-                # ADD sos token and then copy index values to lower slice of token_matrix
-                token_matrix[n_processed, 0, 1] = pos_taggers[-1].start_index
-                token_matrix[n_processed, 1:1 + n_nodes, 1] = form_indices[:]
+                else:
 
-                # Copy part-of-speech indices to pos_matrix to each slice of pos_matrix
-                for j in range(len(pos_taggers) - 1):
+                    # Add SOS token and then copy index values to upper slice of token_matrix
+                    token_matrix[n_processed, 0, 0] = node_tagger.start_index
+                    token_matrix[n_processed, 1:1 + n_nodes, 0] = indices[:]
 
-                    ret = pos_taggers[j].parse_sentence(pos[j])
+                    # Copy form indices from last part-of-speech tagger
+                    form_indices = pos_taggers[-1].parse_sentence(pos[-1])
 
-                    pos_matrix[n_processed, 0, j] = pos_taggers[j].unknown_index
-                    pos_matrix[n_processed, 1:1 + n_nodes, j] = ret[:]              
+                    # ADD sos token and then copy index values to lower slice of token_matrix
+                    token_matrix[n_processed, 0, 1] = pos_taggers[-1].start_index
+                    token_matrix[n_processed, 1:1 + n_nodes, 1] = form_indices[:]
 
-                n_processed += 1
+                    del form_indices
+                    del nodes
+
+                    # Copy part-of-speech indices to pos_matrix to each slice of pos_matrix
+                    for j in range(len(pos_taggers) - 1):
+
+                        ret = pos_taggers[j].parse_sentence(pos[j])
+
+                        pos_matrix[n_processed, 0, j] = pos_taggers[j].unknown_index
+                        pos_matrix[n_processed, 1:1 + n_nodes, j] = ret[:]  
+
+                        del ret            
+
+                    n_processed += 1
+
+                    del pos
 
             elapsed_time_file = time.time() - start_time_file
 
             # print("\tSentences completed: %2d\t||\tTime elapsed: %4f" % (len(sentences), elapsed_time_file))
             print("\tFile %2d of %2d processed..." % (n_files_processed, len(file_list)))
+
+            f.close()
+            del sentences
+
+    token_matrix = token_matrix[:n_processed]
+    pos_matrix = pos_matrix[:n_processed]
 
     print("\nCompleted tagging corpus sentences...")
     print(configx.BREAK_LINE)

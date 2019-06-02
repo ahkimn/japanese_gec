@@ -325,6 +325,80 @@ def filter_probabilities(system_file, probability_file, source_file, reference_f
 	_f.close()
 
 
+def replace_low_probability(source_file, align_file, system_file, probability_file, output_file, threshold):
+
+	source_file = open(source_file, "r")
+	align_file = open(align_file, "r")
+	system_file = open(system_file, "r")
+	probability_file = open(probability_file, "r")
+
+	source_sentences = source_file.readlines()
+	source_file.close()
+
+	alignments = align_file.readlines()
+	align_file.close()
+
+	system_sentences = system_file.readlines()
+	system_file.close()
+
+	probabilities = probability_file.readlines()
+	probability_file.close()
+		
+	n_sentences = len(source_sentences)
+
+	assert(len(alignments) == n_sentences)
+	assert(len(system_sentences) == n_sentences)
+	assert(len(probabilities) == n_sentences)
+
+	ret = [None] * n_sentences
+
+	for i in range(n_sentences):
+
+		print(i)
+
+		source = source_sentences[i].strip().split(' ')
+		align = alignments[i].strip().split(' ')
+		p = probabilities[i].strip().split(' ')
+		sys = system_sentences[i].strip().split(' ')
+
+		output = []
+
+		for j in range(len(p)):
+
+			c_p = abs(float(p[j]))
+
+			if c_p > float(threshold):
+
+				a = int(align[j])
+
+				if a >= len(source):
+
+					output.append('。')
+
+					break
+
+				else:
+
+					print("Current token: %s" % sys[j])
+					print("Loss: %2f" % c_p)
+					print("Aligned token: %s" % source[a])
+
+					output.append(source[a].strip())
+
+			else:
+
+				output.append(sys[j].strip())
+
+		ret[i] = " ".join(output) + os.linesep
+
+	output_file = open(output_file, "w+")
+	output_file.writelines(ret)
+	output_file.close()
+
+
+
+
+
 
 
 	

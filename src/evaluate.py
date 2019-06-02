@@ -74,7 +74,36 @@ def eval_f(ref, sys, top_k=10000, alpha=0.5):
 		indices_ref = list(k for k in indices_ref if k != tagger.unknown_index)
 		indices_sys = list(k for k in indices_sys if k != tagger.unknown_index)
 
-		val = f_measure(set(indices_ref), set(indices_sys), alpha=alpha)
+		# Error rate
+		if alpha == -1:
+
+			incorrect = 0.0
+
+			n_ref = len(indices_ref)
+
+			for j in range(n_ref):
+
+				if j >= len(indices_sys):
+
+					incorrect += 1.0
+
+				else:
+
+					if indices_ref[j] != indices_sys[j]:
+
+						incorrect += 1.0
+
+			if n_ref == 0:
+
+				val = None
+
+			else:
+
+				val = incorrect / n_ref
+
+		else:	
+
+			val = f_measure(set(indices_ref), set(indices_sys), alpha=alpha)
 
 		if val is None:
 

@@ -203,7 +203,6 @@ def load_unique_matrices(database_directory, pos_taggers, save_prefix = configx.
     return [unique_tokens, unique_pos, sort, search_matrix, unique_pos_complete, unique_pos_classes]
 
 
-
 def match_template_tokens(unique_matrices, search_numbers, selected_cells, n_max):
     '''
     Function to generate possible substitute tokens given restrictions on which part-of-speech tags must be preserved
@@ -680,6 +679,7 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     return ret_sentences, ret_indices, starts
 
 
+# TODO: Rule Classification
 def create_search_templates(pos_tags, selections, n_gram_max):
 
     n_to_match = len(pos_tags)
@@ -714,15 +714,7 @@ def create_search_templates(pos_tags, selections, n_gram_max):
 
     return ret_pos_tags, ret_selections
 
-
-
-
-    pass
-
-
-
-
-
+# TODO: Semantic Rule Generation
 def find_semantic_pairs(n_max = -1,
                         n_search = -1,
                         n_gram_max = 3, 
@@ -783,17 +775,11 @@ def find_semantic_pairs(n_max = -1,
 
             pos_tags, selections = create_search_templates(pos_tags, selections, n_gram_max)
 
-
-
-
             print("\n\tFinding potential substitute tokens...")
             print(configx.BREAK_SUBLINE)  
 
-
             print(pos_tags)
             print(selections)
-
-
 
             # List of possible substitute token classes (part-of-speech combinations) per each index of correct sentence
             # as defined by the selections matrix
@@ -815,14 +801,7 @@ def find_semantic_pairs(n_max = -1,
             # s_examples, _, starts, \
             #     = match_template_sentence(search_matrices, pos_tags, selections, possible_classes, 
             #                               token_tagger, pos_taggers, n_max, n_search)
-
-
-
-
     pass
-
-
-
 
 
 def convert_csv_rules(n_max = -1,
@@ -932,7 +911,7 @@ def convert_csv_rules(n_max = -1,
                                                   mapping, selections, s_examples, starts, error_sentence, 
                                                   corrected_sentence)
 
-            # TODO Insert code that will make (correct, correct) sentence pairings
+            # TODO: Insert code that will make (correct, correct) sentence pairings
 
             # print('')
             # display = ''
@@ -964,14 +943,14 @@ def convert_csv_rules(n_max = -1,
 
             # if validate == 'y':
 
-                # print("\tSaving new data...")
-                # save.save_rule(corrected_sentence, error_sentence, paired_data, iterations)
+            #     print("\tSaving new data...")
+            #     save.save_rule(corrected_sentence, error_sentence, paired_data, starts, iterations)
 
-                # print("\tPaired data saved successfully...\n")
+            #     print("\tPaired data saved successfully...\n")
 
             
             print("\tSaving new data...")
-            save.save_rule(corrected_sentence, error_sentence, paired_data, iterations)
+            save.save_rule(corrected_sentence, error_sentence, paired_data, starts, iterations)
 
             print("\tPaired data saved successfully...\n")
 
