@@ -15,7 +15,8 @@ from . import configx
 from . import languages
 
 
-def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=True):
+def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=True,
+                     print_every=10000):
     """
     Update and save languages using new data
     
@@ -26,7 +27,6 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
         save_dir (str): Relative path of save directory for the Language class instances
         source (bool, optional): Determines whether or not the Language is meant for the source (errored) sentences or target (correct) sentences
     """
-
     for j in range(len(sentence_list)):
 
         sentence = sentence_list[j][0]
@@ -39,6 +39,9 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
 
         # Update token tagger
         token_tagger.add_sentence(tokens)
+
+        if j + 1 % print_every == 0:
+            print('Processed sentence %2d of %2d' % (j + 1, len(sentence_list)))
 
         for k in range(len(pos_taggers)):
 

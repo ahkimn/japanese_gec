@@ -151,6 +151,8 @@ def get_files(data_dir, filetype, n_files=-1):
     file_list = list()
 
     data_files = os.listdir(data_dir)
+    print(data_files)
+    print(filetype)
 
     if n_files == -1:
 
