@@ -79,6 +79,8 @@ CONST_SENTENCE_FILE_SUFFIX = ".csv"
 
 CONST_ERRORED_PREFIX = "error"
 CONST_CORRECT_PREFIX = "correct"
+CONST_STARTS_PREFIX = "start"
+CONST_RULES_PREFIX = "rule"
 
 # Default location of SMT files
 CONST_SMT_OUTPUT_DIRECTORY = "smt_output"

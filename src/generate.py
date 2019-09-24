@@ -75,6 +75,8 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
         print("\n\t\tCorrect: " + ' | '.join(nodes_correct))
         print("\t\tError: " + ' | '.join(nodes_error))
 
+    valid_rule_starts = list()
+
     # Iterate over each sub-rule 
     for i in range(len(matched_sentences)):
 
@@ -86,6 +88,8 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
         current_sub_rule = matched_sentences[i]
         ret_sub_rule = []
         ret_sub_rule_coloured = []
+
+        sub_rule_starts = list()
 
         # Iterate over each sentence in each subrule
         for j in range(len(current_sub_rule)):
@@ -373,9 +377,9 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
                 # If the rule is valid, append the new sentence pair to the return array
                 if valid:
 
+                    sub_rule_starts.append(start_indices[i][j])
                     ret_sub_rule.append((''.join(generated_sentence), ''.join(template_sentence)))
                     
-
                     if len(ret_sub_rule_coloured) < max_per_colored:
                         # Manually splice coloured sentences together
                         cc = ''
@@ -401,7 +405,9 @@ def create_errored_sentences(unique_arrays, token_tagger, pos_taggers,
         ret.append(ret_sub_rule)
         ret_coloured.append(ret_sub_rule_coloured)
 
+        valid_rule_starts.append(sub_rule_starts)
+
     # TODO: Make output be paired
        
-    return ret, ret_coloured
+    return ret, ret_coloured, valid_rule_starts
 
