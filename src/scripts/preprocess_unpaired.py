@@ -2,14 +2,16 @@
 
 import csv
 import os
+import MeCab
 
 from .. import languages
 
 CONST_PARSER = MeCab.Tagger()
 
+
 def pre_process_unpaired_files(
         input_dir, output_file,
-        delimiter='。', indicators=None, 
+        delimiter='。', indicators=None,
         ignore_header=True, ext='.csv'
 ):
 
@@ -37,20 +39,27 @@ def pre_process_unpaired_files(
 
             if ignore_header and not row_count:
                 continue
+
             col = 0
 
             for cell in row:
 
                 col += 1
 
-                if indicator in cell:
+                if any(i in cell for i in indicators):
 
                     if col not in data:
 
                         data[col] = list()
 
-                    tokens = languages.parse(cell, CONST_PARSER, None)
-                    data[col].append(' '.join(tokens))
+                    for sentence in cell.strip().split(delimiter):
+
+                        if sentence == '':
+                            continue
+
+                        sentence += delimiter
+                        tokens = languages.parse(sentence, CONST_PARSER, None)
+                        data[col].append(' '.join(tokens))
 
         input_f.close()
         sentences = list()

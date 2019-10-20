@@ -5,13 +5,13 @@ from . import configx
 # Function saving rule files
 
 
-def save_rule(corrected_sentence, error_sentence, paired_data, start_indices, n):
+def save_rule(corrected_sentence, error_sentence, paired_data, start_indices, n, save_prefix=configx.CONST_TEXT_OUTPUT_PREFIX):
 
     if not os.path.isdir(configx.CONST_TEXT_OUTPUT_DIRECTORY):
         os.mkdir(configx.CONST_TEXT_OUTPUT_DIRECTORY)
 
     save_folder = os.path.join(
-        configx.CONST_TEXT_OUTPUT_DIRECTORY, configx.CONST_TEXT_OUTPUT_PREFIX)
+        configx.CONST_TEXT_OUTPUT_DIRECTORY, save_prefix)
 
     print("\t\tSave directory: %s" % save_folder)
 

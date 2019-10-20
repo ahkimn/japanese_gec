@@ -3,7 +3,8 @@ data_params:
 directories:
   data: ./data
   raw_text: ./data/raw_text
-embedding_params: {}
+embedding_params:
+  fasttext_save: model/fasttext/fasttext.mdl
 parser_params:
   delimiter_index: 3
   delimiter_token: "\u3002"

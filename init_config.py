@@ -21,12 +21,12 @@ cfg['directories'] = {
 cfg['data_params'] = {
 
     'raw_text_filetype': '.txt'
-
-
-
 }
 
-cfg['embedding_params'] = dict()
+cfg['embedding_params'] = {
+
+    'fasttext_save': 'model/fasttext/fasttext.mdl'
+}
 
 cfg['parser_params'] = {
 
