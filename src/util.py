@@ -2,28 +2,31 @@
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 18/06/2018
-# Date Last Modified: 27/02/2019
+# Date Last Modified: 10/10/2019
 # Python Version: 3.7
 
 '''
 Miscellaneous helper functions
 '''
 
+import errno
 import numpy as np
 import os
+
+from itertools import islice, chain
 
 
 def last(arr, low, high, x, n):
     """
     Recursive search function to find the last occurence of a value within a sorted array
-    
+
     Args:
         arr (arr): Sorted array to search
         low (int): Lowest index to search
         high (int): Highest index to search
         x (int): Value to search for
         n (int): Length of array
-    
+
     Returns:
         (int): Last index of x in arr or -1 if x is not in arr
     """
@@ -34,7 +37,7 @@ def last(arr, low, high, x, n):
 
         # If the value of x occurs at the midpoint (and the subsequent value is greater than it)
         if (mid == n - 1 or x < arr[mid + 1]) and arr[mid] == x:
-            
+
             return mid
 
         # Recursively search prior to midpoint if midpoint greater than x
@@ -43,10 +46,10 @@ def last(arr, low, high, x, n):
             return last(arr, low, (mid - 1), x, n)
 
         # Recursively search past midpoint if midpoint is less than x
-        else :
+        else:
 
             return last(arr, (mid + 1), high, x, n)
-            
+
     # If the value x is not found
     return -1
 
@@ -54,13 +57,13 @@ def last(arr, low, high, x, n):
 def search_template(arr, indices, vals, n):
     """
     Perform a rolling search, looking for a template within a given array
-    
+
     Args:
         arr (np.ndarray): Array to search
         indices (np.ndarray): Indices to match
         vals (np.ndarray): Values to match
         n (int): Length of indices array
-    
+
     Returns:
         (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
     """
@@ -79,7 +82,7 @@ def search_template(arr, indices, vals, n):
 
         else:
 
-            test = (arr[:, i: ] == val)
+            test = (arr[:, i:] == val)
 
         # Perform intersection if ret has already been initialized
         if ret is not None:
@@ -87,22 +90,54 @@ def search_template(arr, indices, vals, n):
             ret = np.logical_and(test, ret)
 
         # Intialize ret on first iteration
-        else: 
+        else:
 
             ret = test
 
     return ret
 
 
+def search_1d(arr, indices, vals, n, _len):
+    """
+    Perform a rolling search, looking for a template within a given array
+
+    Args:
+        arr (np.ndarray): Array to search
+        indices (np.ndarray): Indices to match
+        vals (np.ndarray): Values to match
+        n (int): Length of indices array
+
+    Returns:
+        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+    """
+    len_template = len(vals)
+    ret = np.zeros(_len - len_template + 1, dtype=np.bool)
+
+    for i in range(len(ret)):
+
+        match = (arr[i:i + len_template] == vals).reshape(-1)
+        ret[i] = np.all(match[indices])
+
+    return ret
+
+
+def single_stream(dir_in, dir_out, filters):
+
+
+    pass
+
+
+
+
 def check_matched_indices(pos, check, used_tags):
     """
     Determine the type of a match of part-of-speech indices where the types are defined by the used_tags array
-    
+
     Args:
         pos (np.ndarray): Matrix containing the part-of-speech values to search through
         check (np.ndarray): Array determining which indices per row (sentence) of pos to search through
         used_tags (arr): List of tuples containing the possible classes
-    
+
     Returns:
         (tuple): A tuple containing the following arrays
             matches (arr): An array of np.ndarrays masking where the matched phrases align with the each tag of used_tags
@@ -126,7 +161,7 @@ def check_matched_indices(pos, check, used_tags):
 
     for i in range(len(used_tags)):
 
-        e = np.all(x == used_tags[i], axis = 1)
+        e = np.all(x == used_tags[i], axis=1)
         count = np.sum(e)
 
         matches.append(e)
@@ -138,12 +173,12 @@ def check_matched_indices(pos, check, used_tags):
 def get_files(data_dir, filetype, n_files=-1):
     """
     Obtain a list of files within a directory of a certain filetype
-    
+
     Args:
         data_dir (str): Directory to search for corpus files
         filetype (str): File suffix
         n_files (int): Max number of files to obtain
-    
+
     Returns:
         (arr): List of paths to files satisfying requirements
     """
@@ -151,8 +186,6 @@ def get_files(data_dir, filetype, n_files=-1):
     file_list = list()
 
     data_files = os.listdir(data_dir)
-    print(data_files)
-    print(filetype)
 
     if n_files == -1:
 
@@ -175,8 +208,22 @@ def get_files(data_dir, filetype, n_files=-1):
     return file_list
 
 
-def mkdir_p(path):
-    """    
+def get_files_recursive(data_dir, filetype):
+
+    ret_list = get_files(data_dir, filetype)
+
+    subdirectories = list(p for p in os.listdir(data_dir) if
+                          os.path.isdir(os.path.join(data_dir, p)))
+
+    for sub_dir in subdirectories:
+        ret_list += get_files_recursive(os.path.join(data_dir,
+                                                     sub_dir), filetype)
+
+    return ret_list
+
+
+def mkdir_p(path, file=False, verbose=True):
+    """
     Function to recursively generate directories
 
     Args:
@@ -184,17 +231,34 @@ def mkdir_p(path):
     """
     try:
 
+        if file:
+
+            split_path = os.path.split(path)
+            path = split_path[0]
+
         os.makedirs(path)
+
+        if verbose:
+            print('Created directories for path: %s' % path)
 
     except OSError as exc:
 
         if exc.errno == errno.EEXIST and os.path.isdir(path):
 
+            if verbose:
+                print('Path to %s already exists' % path)
             pass
 
         else:
 
             raise
+
+
+def iter_batch(iterable, size=1):
+
+    while True:
+        batch_iter = islice(iterable, size)
+        yield chain([next(batch_iter)], batch_iter)
 
 
 def clear_():

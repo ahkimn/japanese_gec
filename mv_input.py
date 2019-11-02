@@ -1,10 +1,16 @@
 import os
+import sys
 from shutil import copyfile
 
-src_dir = "corpus"
-dst_dir = "input"
 
 if __name__ == "__main__":
+
+	prefix = sys.argv[1]
+	src_dir = os.path.join('corpus', prefix)
+	dst_dir = os.path.join('input', prefix)
+
+	if not os.path.isdir(dst_dir):
+		os.mkdir(dst_dir)
 
 	copyfile(os.path.join(src_dir, "train_error"), os.path.join(dst_dir, "train.source"))
 	copyfile(os.path.join(src_dir, "train_correct"), os.path.join(dst_dir, "train.target"))
@@ -21,7 +27,6 @@ if __name__ == "__main__":
 	while (os.path.isfile(os.path.join(src_dir, "test_" + str(k) + "_error"))):
 
 		for x in ["test", "validation"]:
-
 
 			source_file = os.path.join(src_dir, x + "_" + str(k) + "_error")
 			target_file = os.path.join(src_dir, x + "_" + str(k) + "_correct")

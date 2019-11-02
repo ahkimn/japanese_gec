@@ -127,7 +127,7 @@ CONST_SEMANTIC_PAIRS = "semantic_pairs.csv"
 '''
 Constants for Languages
 '''
-CONST_PARSER = MeCab.Tagger()
+CONST_PARSER = MeCab.Tagger("-d /usr/local/lib/mecab/dic/mecab-ipadic-neologd")
 
 CONST_PAD_TOKEN = "PAD"
 CONST_PAD_INDEX = 0

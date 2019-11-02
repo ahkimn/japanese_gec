@@ -123,7 +123,7 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
     return data_files, start_files, rule_nodes, sub_rule_counts, pair_counts
 
 
-def generate_dataset(data_files, start_files, rule_counts, pair_counts, training_ratio=0.7, validation_ratio=0.1, max_per_rule=25000, min_per_rule=100):
+def generate_dataset(data_files, start_files, rule_counts, pair_counts, training_ratio=0.7, validation_ratio=0.1, max_per_rule=5000, min_per_rule=100):
     """
     Function to generate a full dataset (training/validation/test) from a given set of data files
 
@@ -206,8 +206,7 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
                 sentence_starts.append(list(int(i) for i in row))
 
         # Obtain a representative sample of data over sub-rules
-        n_per = representative_sample(pair_counts[i], int(
-            training_ratio * min(max_per_rule, sum(pair_counts[i]))))
+        n_per = representative_sample(pair_counts[i], min(sum(pair_counts[i]), max_per_rule))
 
         for j in range(n_subrules):
 
@@ -220,7 +219,7 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
 
                 data, starts = sample_from_csv(
                     subrule_file, sentence_starts[subrule_index], n_per[j],
-                    validation_ratio, max_per_rule)
+                    training_ratio, validation_ratio, max_per_rule)
 
             except:
                 continue
@@ -257,7 +256,7 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
     return data, data_starts
 
 
-def sample_from_csv(file_path, starts, count, validation_ratio, max_total=5000):
+def sample_from_csv(file_path, starts, count, training_ratio, validation_ratio, max_total=5000):
     """
     Sample count sentence (pairs) from a given CSV file
 
@@ -274,30 +273,33 @@ def sample_from_csv(file_path, starts, count, validation_ratio, max_total=5000):
     """
     f = open(file_path, "r")
 
+
     csv_reader = csv.reader(f)
     rows = list(row for row in csv_reader)
-
     assert(len(rows) == len(starts))
     rs = np.random.RandomState(seed=0)
     perm = rs.permutation(len(rows))
-    n_validation = int(min(len(rows) - count, max_total)
-                       * validation_ratio)
-    n_test = int(min(len(rows) - count, max_total)
-                 * (1 - validation_ratio))
+
+    n_sample = min(count, max_total)
+
+    n_training = int(count * training_ratio)
+    n_validation = int(count * validation_ratio)
+    n_test = count - n_training - n_validation
+
 
     f.close()
 
-    d_train = list(rows[k] for k in perm[:count])
+    d_train = list(rows[k] for k in perm[:n_training])
     d_validation = list(rows[l] for l in
-                        perm[count:count + n_validation])
+                        perm[n_training:n_training + n_validation])
     d_test = list(rows[m] for m in
-                  perm[count + n_validation:count + n_validation + n_test])
+                  perm[n_training + n_validation:n_training + n_validation + n_test])
 
-    s_train = list(starts[k] for k in perm[:count])
+    s_train = list(starts[k] for k in perm[:n_training])
     s_validation = list(starts[l] for l in
-                        perm[count:count + n_validation])
+                        perm[n_training:n_training + n_validation])
     s_test = list(starts[m] for m in
-                  perm[count + n_validation:count + n_validation + n_test])
+                  perm[n_training + n_validation:n_training + n_validation + n_test])
 
     return (d_train, d_validation, d_test), (s_train, s_validation, s_test)
 
@@ -485,79 +487,79 @@ def save_dataset(data_directory=configx.CONST_TEXT_OUTPUT_DIRECTORY,
     train_starts, validation_starts, test_starts, full_validation_starts, full_test_starts = dataset_starts
 
     # Uncomment this if running first time on new dataset
-    # print("Updating source language")
-    # # Generate and update source languages
-    # token_tagger = languages.Language(True)
-    # pos_taggers = [languages.Language(), languages.Language(
-    # ), languages.Language(), languages.Language(), languages.Language(True)]
+    print("Updating source language")
+    # Generate and update source languages
+    token_tagger = languages.Language(True)
+    pos_taggers = [languages.Language(), languages.Language(
+    ), languages.Language(), languages.Language(), languages.Language(True)]
 
-    # if not os.path.isdir(source_language_dir):
-    #     util.mkdir_p(source_language_dir)
+    if not os.path.isdir(source_language_dir):
+        util.mkdir_p(source_language_dir)
 
-    # # Update languages with new tokens from training data
-    # print("\tAdding data from train dataset")
-    # update_languages.update_languages(
-    #     token_tagger, pos_taggers, train_data, source_language_dir)
+    # Update languages with new tokens from training data
+    print("\tAdding data from train dataset")
+    update_languages.update_languages(
+        token_tagger, pos_taggers, train_data, source_language_dir)
 
-    # # Update languages with new tokens from validation data
-    # print("\tAdding data from validation dataset")
-    # for validation_rule in validation_data:
-    #     update_languages.update_languages(
-    #         token_tagger, pos_taggers, validation_rule, source_language_dir)
+    # Update languages with new tokens from validation data
+    print("\tAdding data from validation dataset")
+    for validation_rule in validation_data:
+        update_languages.update_languages(
+            token_tagger, pos_taggers, validation_rule, source_language_dir)
 
-    # # Update languages with new tokens from test data
-    # print("\tAdding data from test dataset")
-    # for test_rule in test_data:
-    #     update_languages.update_languages(
-    #         token_tagger, pos_taggers, test_rule, source_language_dir)
+    # Update languages with new tokens from test data
+    print("\tAdding data from test dataset")
+    for test_rule in test_data:
+        update_languages.update_languages(
+            token_tagger, pos_taggers, test_rule, source_language_dir)
 
-    # print("Updating target language")
-    # token_tagger = languages.Language(True)
-    # pos_taggers = [languages.Language(), languages.Language(
-    # ), languages.Language(), languages.Language(), languages.Language(True)]
+    print("Updating target language")
+    token_tagger = languages.Language(True)
+    pos_taggers = [languages.Language(), languages.Language(
+    ), languages.Language(), languages.Language(), languages.Language(True)]
 
-    # if not os.path.isdir(target_language_dir):
-    #     util.mkdir_p(target_language_dir)
+    if not os.path.isdir(target_language_dir):
+        util.mkdir_p(target_language_dir)
 
-    # # Update languages with new tokens from training data
-    # print("\tAdding data from train dataset")
-    # update_languages.update_languages(
-    #     token_tagger, pos_taggers, train_data, target_language_dir, False)
+    # Update languages with new tokens from training data
+    print("\tAdding data from train dataset")
+    update_languages.update_languages(
+        token_tagger, pos_taggers, train_data, target_language_dir, False)
 
-    # # Update languages with new tokens from validation data
-    # print("\tAdding data from validation dataset")
-    # for validation_rule in validation_data:
-    #     update_languages.update_languages(
-    #         token_tagger, pos_taggers, validation_rule, target_language_dir, False)
+    # Update languages with new tokens from validation data
+    print("\tAdding data from validation dataset")
+    for validation_rule in validation_data:
+        update_languages.update_languages(
+            token_tagger, pos_taggers, validation_rule, target_language_dir, False)
 
-    # # Update languages with new tokens from test data
-    # print("\tAdding data from test dataset")
-    # for test_rule in test_data:
-    #     update_languages.update_languages(
-    #         token_tagger, pos_taggers, test_rule, target_language_dir, False)
+    # Update languages with new tokens from test data
+    print("\tAdding data from test dataset")
+    for test_rule in test_data:
+        update_languages.update_languages(
+            token_tagger, pos_taggers, test_rule, target_language_dir, False)
 
-    #  # Location to save the corpus data
-    # if not os.path.isdir(corpus_save_dir):
-    #     util.mkdir_p(corpus_save_dir)
+     # Location to save the corpus data
+    if not os.path.isdir(corpus_save_dir):
+        util.mkdir_p(corpus_save_dir)
 
-    # print("Finished updating languages")
+    print("Finished updating languages")
 
     token_tagger_source, pos_taggers_source = languages.load_default_languages(
         source_language_dir)
     token_tagger_target, pos_taggers_target = languages.load_default_languages(
         target_language_dir)
 
-    # print("\nSaving training corpus data...")
-    # save_as_corpus(token_tagger_source, token_tagger_target,
-    #                train_data, train_starts, "train", corpus_save_dir)
+    print("\nSaving training corpus data...")
+    save_as_corpus(token_tagger_source, token_tagger_target,
+                   train_data, train_starts, "train", corpus_save_dir)
 
-    # print("\nSaving full validation corpus data...")
-    # save_as_corpus(token_tagger_source, token_tagger_target,
-    #                full_validation, full_validation_starts, "validation_full", corpus_save_dir)
+    print("\nSaving full validation corpus data...")
+    save_as_corpus(token_tagger_source, token_tagger_target,
+                   full_validation, full_validation_starts, "validation_full", corpus_save_dir)
 
-    # print("\nSaving full test corpus data...")
-    # save_as_corpus(token_tagger_source, token_tagger_target,
-    #                full_test, full_test_starts, "test_full", corpus_save_dir)
+    print("\nSaving full test corpus data...")
+    save_as_corpus(token_tagger_source, token_tagger_target,
+                   full_test, full_test_starts, "test_full", corpus_save_dir)
 
     print('')
     for j in range(len(validation_data)):
