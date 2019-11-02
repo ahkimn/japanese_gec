@@ -7,12 +7,15 @@ from . import languages
 from . import util
 
 
-def get_paired_phrases(tagger, source, target, start, top_k=-1):
+def get_paired_phrases(tagger, source, target, start=None):
 
-    start = open(start, "r")
-    start_lines = start.readlines()
-    starts = list(list(int(i) for i in x.strip().split(','))
-              for x in start_lines)
+    starts = None
+
+    if start is not None:
+        start = open(start, "r")
+        start_lines = start.readlines()
+        starts = list(list(int(i) for i in x.strip().split(','))
+                  for x in start_lines)
 
     target = open(target, "r")
     source = open(source, "r")
@@ -31,8 +34,8 @@ def get_paired_phrases(tagger, source, target, start, top_k=-1):
         text_source = source_lines[i].strip().split(' ')
         text_target = target_lines[i].strip().split(' ')
 
-        indices_source = list(tagger.parse_node(j, top_k) for j in text_source)
-        indices_target = list(tagger.parse_node(j, top_k) for j in text_target)
+        indices_source = list(tagger.add_node(j) for j in text_source)
+        indices_target = list(tagger.add_node(j) for j in text_target)
 
         tokens_source = list(tagger.parse_index(k) for k in indices_source)
         tokens_target = list(tagger.parse_index(k) for k in indices_target)
@@ -50,8 +53,13 @@ def get_paired_phrases(tagger, source, target, start, top_k=-1):
                 _source = ''.join(tokens_source[indices[0]: indices[1]])
                 _target = ''.join(tokens_target[indices[2]: indices[3]])
 
-                source_strings.append(_source)
-                target_strings.append(_target)
+            else:
+
+                _source = ''.join(tokens_source)
+                _target = ''.join(tokens_target)
+
+            source_strings.append(_source)
+            target_strings.append(_target)
 
     return source_strings, target_strings
 

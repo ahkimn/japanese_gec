@@ -97,6 +97,38 @@ def search_template(arr, indices, vals, n):
     return ret
 
 
+def search_1d(arr, indices, vals, n, _len):
+    """
+    Perform a rolling search, looking for a template within a given array
+
+    Args:
+        arr (np.ndarray): Array to search
+        indices (np.ndarray): Indices to match
+        vals (np.ndarray): Values to match
+        n (int): Length of indices array
+
+    Returns:
+        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+    """
+    len_template = len(vals)
+    ret = np.zeros(_len - len_template + 1, dtype=np.bool)
+
+    for i in range(len(ret)):
+
+        match = (arr[i:i + len_template] == vals).reshape(-1)
+        ret[i] = np.all(match[indices])
+
+    return ret
+
+
+def single_stream(dir_in, dir_out, filters):
+
+
+    pass
+
+
+
+
 def check_matched_indices(pos, check, used_tags):
     """
     Determine the type of a match of part-of-speech indices where the types are defined by the used_tags array
@@ -221,15 +253,16 @@ def mkdir_p(path, file=False, verbose=True):
 
             raise
 
+
 def iter_batch(iterable, size=1):
 
     while True:
         batch_iter = islice(iterable, size)
         yield chain([next(batch_iter)], batch_iter)
 
+
 def clear_():
     """
     Function to clear the console
     """
     os.system('cls' if os.name == 'nt' else 'clear')
-

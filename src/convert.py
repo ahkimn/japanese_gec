@@ -213,8 +213,30 @@ def load_unique_matrices(database_directory, pos_taggers,
         else:
             unique_pos_classes[up] = [k]
 
-    sort = np.concatenate((sort, sort_form.reshape(-1, 1)), axis=1)
+    form_pos = dict()
 
+    for k in range(len(unique_tokens)):
+
+        _form = unique_tokens[k, 1]
+        _token = unique_tokens[k, 0]
+        _pos = tuple(unique_pos[k])
+
+        if _form in form_pos:
+
+            if _pos in form_pos[_form]:
+
+                form_pos[_form][_pos].append(_token)
+
+            else:
+
+                form_pos[_form][_pos] = [_token]
+
+        else:
+
+            form_pos[_form] = dict()
+            form_pos[_form][_pos] = [_token]
+
+    sort = np.concatenate((sort, sort_form.reshape(-1, 1)), axis=1)
 
     matrices = dict()
     matrices['token'] = unique_tokens
@@ -223,8 +245,9 @@ def load_unique_matrices(database_directory, pos_taggers,
     matrices['sort'] = sort
     matrices['search'] = search_matrix
 
-    matrices['complete'] = unique_tokens
-    matrices['classes'] = unique_pos_complete
+    matrices['complete'] = unique_pos_complete
+    matrices['classes'] = unique_pos_classes
+    matrices['form_dict'] = form_pos
 
     return matrices
 
@@ -509,7 +532,9 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
         n_search = min(n_search, len(tokens))
 
     # Permutation to randomly select the sentences from the array
-    match_array = None
+    match_array = np.ones((forms.shape[0],
+                           forms.shape[1] - selections.shape[0] + 1),
+                          dtype=np.bool)
 
     # Iterate over each part-of-speech index, restricting possible matches by part-of-speech indices demanding exact matching
     for i in range(len(pos_taggers)):
@@ -525,14 +550,8 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
 
         else:
 
-            # Initialize match_array on first part-of-speech index
-            if i == 0:
-
-                match_array = util.search_template(
-                    pos[i], np.argwhere(s_column == 1), n_column, n_tokens)
-
-            # Perform array intersection on subsequent part-of-speech indices
-            elif i != len(pos_taggers) - 1:
+            # Perform array intersection on each part-of-speech index
+            if i != len(pos_taggers) - 1:
 
                 match_array = np.logical_and(match_array, util.search_template(
                     pos[i], np.argwhere(s_column == 1), n_column, n_tokens))
@@ -553,6 +572,7 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     sentences = tokens[successes]
     lengths = lengths[successes]
     pos = pos[:, successes]
+    forms = forms[successes]
 
     match_array = match_array[successes]
 
@@ -571,6 +591,7 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     temp_lengths = np.ndarray((n_matches), lengths.dtype)
 
     temp_pos = np.ndarray((pos.shape[0], n_matches, pos.shape[2]), pos.dtype)
+    temp_forms = np.ndarray((n_matches, forms.shape[1]), forms.dtype)
 
     temp_matched_indices = np.ndarray(n_matches, matched_indices.dtype)
 
@@ -579,7 +600,8 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     temp_sentences[:n_matched_sentences] = sentences[:]
     temp_lengths[:n_matched_sentences] = lengths[:]
 
-    temp_pos[:, :n_matched_sentences] = pos[:][:]
+    temp_forms[:n_matched_sentences] = forms[:]
+    temp_pos[:, :n_matched_sentences] = pos[:, :]
 
     temp_matched_indices[:n_matched_sentences] = matched_indices[:]
 
@@ -597,8 +619,6 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
             # For each extra match
             while n_per[j] > 1:
 
-                print(temp_match_array[j][:])
-
                 # Remove the first instance of the match in the match_array
                 first_index = np.argmax(copy)
                 copy[first_index] = 0
@@ -609,6 +629,7 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
                 temp_lengths[insert_index] = lengths[j]
 
                 temp_pos[:, insert_index] = pos[:, j]
+                temp_forms[insert_index][:] = forms[j][:]
 
                 temp_matched_indices[insert_index] = matched_indices[j]
 
@@ -626,6 +647,7 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
     sentences = temp_sentences
     lengths = temp_lengths
     pos = temp_pos
+    forms = temp_forms
     matched_indices = temp_matched_indices
 
     # Get index to start search from per each sentence (note that argmax selects first index equivalent to max)
@@ -660,14 +682,15 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
 
     print("\tFinal number of valid sentences: %d" % (n_valid))
 
-
     match_array = match_array[valid]
     sentences = sentences[valid]
     lengths = lengths[valid]
+    forms = forms[valid]
     pos = pos[:, valid]
     matched_indices = matched_indices[valid]
 
-    tokens = list(token_tagger.parse_indices(sentences[j][:lengths[j]]) for j in range(n_valid))
+    tokens = list(token_tagger.parse_indices(
+        sentences[j][:lengths[j]]) for j in range(n_valid))
 
     # Get index to start search from per each sentence (note that argmax
     #   selects first index equivalent to max)
@@ -678,7 +701,9 @@ def match_template_sentence(search_matrices, search_numbers, selections, possibl
 
     ret = dict()
 
+    ret['forms'] = forms
     ret['indices'] = matched_indices
+    ret['pos'] = pos
     ret['sentences'] = sentences
     ret['starts'] = starts
     ret['tokens'] = tokens
@@ -892,9 +917,6 @@ def find_semantic_pairs(
             print("\n\tFinding potential substitute tokens...")
             print(configx.BREAK_SUBLINE)
 
-            print(pos_tags)
-            print(selections)
-
             # List of possible substitute token classes (part-of-speech combinations) per each index of correct sentence
             # as defined by the selections matrix
             possible_classes = list()
@@ -927,8 +949,10 @@ def get_rule_info(rule_text, pos_taggers):
     corrected_sentence = rule_text[0]
     error_sentence = rule_text[1]
 
-    print("\nReading Rule: %s --> %s" %
-          (corrected_sentence, error_sentence))
+    rule_string = "\nReading Rule: %s --> %s" % \
+        (corrected_sentence, error_sentence)
+
+    print(rule_string)
     print(configx.BREAK_LINE)
 
     # Retrieve unencoded part-of-speech tags of the correct sentence
@@ -964,6 +988,8 @@ def get_rule_info(rule_text, pos_taggers):
     rule_dict['correct'] = corrected_sentence
     rule_dict['error'] = error_sentence
     rule_dict['pos'] = pos_tags
+
+    rule_dict['str'] = rule_string
 
     rule_dict['selections'] = selections
     rule_dict['mapping'] = mapping
@@ -1007,6 +1033,10 @@ def convert_csv_rules(n_max=-1,
 
         # Read each line (rule) of CSV
         for rule_text in csv_reader:
+
+            if rule_text[0] == '#':
+
+                continue
 
             if iterations == 0:
                 iterations += 1
@@ -1091,6 +1121,5 @@ def convert_csv_rules(n_max=-1,
                            paired_data, starts, iterations, save_prefix=save_name)
 
             print("\tPaired data saved successfully...\n")
-
 
             iterations += 1

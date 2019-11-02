@@ -29,18 +29,24 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
     """
     for j in range(len(sentence_list)):
 
-        sentence = sentence_list[j][0]
+        if source is None:
 
-        if not source:
+            sentence = sentence_list[j]
 
-            sentence = sentence_list[j][1]       
+        elif source == True:
+
+            sentence = sentence_list[j][0]
+
+        else:
+
+            sentence = sentence_list[j][1]
 
         tokens, pos_tags = languages.parse_full(sentence, configx.CONST_PARSER, None)
 
         # Update token tagger
         token_tagger.add_sentence(tokens)
 
-        if j + 1 % print_every == 0:
+        if (j + 1) % print_every == 0:
             print('Processed sentence %2d of %2d' % (j + 1, len(sentence_list)))
 
         for k in range(len(pos_taggers)):
@@ -53,10 +59,12 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
     # Save updated token tagger
     token_tagger.sort()
     token_tagger.save_dicts(token_prefix)
+    token_tagger.sample()
 
     # Save updated pos_taggers
     for k in range(len(pos_taggers)):
 
         pos_taggers[k].sort()
         pos_taggers[k].save_dicts(pos_prefix + str(k))
+        pos_taggers[k].sample()
 

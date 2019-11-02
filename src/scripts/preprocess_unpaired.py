@@ -6,7 +6,7 @@ import MeCab
 
 from .. import languages
 
-CONST_PARSER = MeCab.Tagger()
+CONST_PARSER = MeCab.Tagger("-d /usr/local/lib/mecab/dic/mecab-ipadic-neologd")
 
 
 def pre_process_unpaired_files(

@@ -8,11 +8,15 @@ import os
 
 
 def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_err=None, start=None, rule=None,
-                top_k=10000):
+                top_k=10000, language_dir=None):
 
-    target_language_dir = configx.CONST_UPDATED_TARGET_LANGUAGE_DIRECTORY
+    if language_dir is None:
 
-    tagger, _ = languages.load_default_languages(target_language_dir)
+        tagger, _ = languages.load_default_languages()
+
+    else:
+
+        tagger, _ = languages.load_languages(language_dir)
 
     model_name = os.path.splitext(os.path.basename(sys))[0]
 
@@ -22,11 +26,13 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
 
     if out_err is not None:
 
+        util.mkdir_p(out_err, file=True)
         out_err = open(out_err, "w+")
         out_err.write('インデクス,誤り文,正しい文,モデル出力' + os.linesep)
 
     if out_crt is not None:
 
+        util.mkdir_p(out_crt, file=True)
         out_crt = open(out_crt, "w+")
         out_crt.write('インデクス,誤り文,正しい文,モデル出力' + os.linesep)
 
@@ -40,6 +46,8 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
         start = open(start, "r")
         start_lines = start.readlines()
 
+        n_start = len(start_lines[0].split(','))
+
         if rule is not None:
 
             rule = open(rule, "r")
@@ -48,11 +56,20 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
             rule_lengths = list(int(i)
                                 for i in rule_lines[1].strip().split(','))
 
+        if n_start == 1:
             for i in start_lines:
 
                 idx = int(i.strip())
                 rule_starts = [idx, idx + rule_lengths[1],
                                idx, idx + rule_lengths[1]]
+                starts.append(rule_starts)
+
+        if n_start == 2:
+            for i in start_lines:
+
+                indices = list(int(x) for x in i.strip().split(','))
+                rule_starts = [indices[1], indices[1] + rule_lengths[1],
+                               indices[0], indices[0] + rule_lengths[0]]
                 starts.append(rule_starts)
 
         else:
@@ -135,7 +152,7 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
     score_type = 'binary' if starts is not None else 'binary_full'
 
     if rule_label != '':
-        __update_rule_file(score_type, model_name, ret, corpus_name, rule_label, rule_strings)
+        __update_rule_file(score_type, model_name, ret, corpus_name, rule_label, rule_strings, n_lines)
 
     return ret
 
@@ -212,12 +229,12 @@ def eval_f(ref, sys, top_k=10000, alpha=0.5):
     return ret
 
 
-def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule_strings=None):
+def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule_strings=None, n_lines=0):
 
     f = './comparison/%s/score_%s.csv' % (rule_dir, score_type)
     rule_label = str(rule_label)
 
-    header = ['rule', 'rule_string']
+    header = ['rule', 'rule_string', 'number_of_samples']
 
     data = list()
     found_rules = dict()
@@ -234,7 +251,7 @@ def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule
 
             if idx == 0:
 
-                if len(line) > 2:
+                if len(line) > 3:
 
                     header = line
 
@@ -284,9 +301,9 @@ def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule
 
         text_rule = ' '.join(rule_strings) if rule_strings is not None else ''
 
-        data.append([rule_label, text_rule])
+        data.append([rule_label, text_rule, n_lines])
 
-        for i in range(2, n_cols):
+        for i in range(3, n_cols):
 
             data[-1].append('')
 

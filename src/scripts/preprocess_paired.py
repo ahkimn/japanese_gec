@@ -1,4 +1,5 @@
 import os
+import re
 
 from .. import configx
 from .. import languages
@@ -32,6 +33,9 @@ def _split_sentence(sentence, delimiters):
 
 def _match_token_indices(tokens, template_indices):
 
+    print(tokens)
+    print(template_indices)
+
     chars = 0
     start = -1
     end = -1
@@ -51,11 +55,13 @@ def _match_token_indices(tokens, template_indices):
 
 
 def pre_process_delimited_txt(
-        input_file, output_source,
-        output_target, output_start,
-        err_delimiters=('<', '>'), crt_delimiters=('(', ')'),
-        sentence_delimiter='\t'
+    input_file, output_source,
+    output_target, output_start,
+    err_delimiters=('<', '>'), crt_delimiters=('(', ')'),
+    sentence_delimiter='\t', sentence_end='。'
 ):
+
+    seen_dict = dict()
 
     source_text = list()
     target_text = list()
@@ -68,10 +74,10 @@ def pre_process_delimited_txt(
     with open(input_file, "r", encoding="utf-8") as in_file:
 
         line_number = 1
-
         for line in in_file.readlines():
 
             print('line: %s' % line)
+            line = line.replace(sentence_end, '')
             line = line.strip().split(sentence_delimiter)
 
             if len(line) != 2:
@@ -79,8 +85,30 @@ def pre_process_delimited_txt(
                       line_number)
                 continue
 
-            source_line = line[0].replace(r'\s+', '')
-            target_line = line[1].replace(r'\s+', '')
+            source_line = re.sub(r'\s+|　', '', line[0])
+            target_line = re.sub(r'\s+|　', '', line[1])
+
+            base_source = source_line
+            base_target = target_line
+
+            for i in err_delimiters:
+
+                base_source = base_source.replace(i, '')
+                base_target = base_target.replace(i, '')
+
+            for i in crt_delimiters:
+
+                base_source = base_source.replace(i, '')
+                base_target = base_target.replace(i, '')
+
+            base = base_source + '|||' + base_target
+
+            if base in seen_dict:
+                print("ERROR IN LINE %2d: BASE SENTENCE PREVIOUSLY SEEN" %
+                      line_number)
+                continue
+            else:
+                seen_dict[base] = 1
 
             if source_line == '' or target_line == '':
                 print('ERROR IN LINE %2d: EMPTY SOURCE OR TARGET SENTENCE' %
@@ -103,6 +131,11 @@ def pre_process_delimited_txt(
             source_tokens = languages.parse(source, configx.CONST_PARSER, None)
             target_tokens = languages.parse(target, configx.CONST_PARSER, None)
 
+            if source_tokens[-1] != sentence_end:
+                source_tokens.append(sentence_end)
+            if target_tokens[-1] != sentence_end:
+                target_tokens.append(sentence_end)
+
             try:
 
                 err_start, err_end = _match_token_indices(
@@ -113,8 +146,8 @@ def pre_process_delimited_txt(
             except Exception:
 
                 print(
-                    'ERROR IN LINE %2d: ERROR AND CORRECTION PHRASES DO NOT ' +
-                    'COINCIDE WITH TOKEN BOUNDARIES' % line_number)
+                    'ERROR IN LINE %2d: ERROR AND CORRECTION PHRASES DO NOT \
+                    COINCIDE WITH TOKEN BOUNDARIES' % line_number)
                 continue
 
             source_text.append(' '.join(source_tokens))
