@@ -2,7 +2,7 @@
 # Author: Alex Kimn
 # E-mail: alex.kimn@outlook.com
 # Date Created: 10/10/2019
-# Date Last Modified: 10/10/2019
+# Date Last Modified: 09/11/2019
 # Python Version: 3.7
 
 import numpy as np
@@ -239,8 +239,8 @@ def _confirm_error(token_tagger, pos_taggers,
                     final_index = t
 
                     if alterer.is_deletion() and \
-                        (len(base_token) - len(final_token)
-                            != alterer.del_length()):
+                        (len(base_token) - len(final_token) !=
+                            alterer.del_length()):
 
                         final_index = -1
 
@@ -602,11 +602,92 @@ def _write_outputs(match_info, unique_mapping, original_data, rule_output_dir,
     print('\tNumber of sentences written: %d' % len(written_indices))
 
 
+def _display_multiple_coverage(coverage, predicates):
+
+    print('\nDisplaying predicates matching multiple rules...')
+    print(configx.BREAK_LINE + '\n')
+
+    for i in coverage.keys():
+
+        matched_rules = coverage[i]
+
+        if len(matched_rules) > 1:
+
+            predicate = predicates[i]
+
+            print('\tPredicate %d: %s' % (i, predicate))
+            print('\t\tMatched by rules: %s' %
+                  ', '.join(str(x) for x in list(matched_rules)))
+
+
+def _display_coverage_supersets(rule_coverage, rule_data, empty_rules):
+
+    print('\nFinding coverage supersets...')
+    print(configx.BREAK_LINE + '\n')
+
+    for r_1 in rule_coverage.keys():
+
+        s_1 = rule_data[r_1]['str']
+
+        if r_1 in empty_rules:
+
+            print('\tWARNING: Rule %d (%s) is empty' % (r_1, s_1))
+
+            continue
+
+        for r_2 in rule_coverage.keys():
+
+            s_2 = rule_data[r_2]['str']
+
+            if r_2 in empty_rules:
+
+                continue
+
+            elif r_2 >= r_1:
+
+                continue
+
+            set_1 = rule_coverage[r_1]
+            set_2 = rule_coverage[r_2]
+
+            if set_1 == set_2:
+
+                print('\tERROR: Rule %d (%s) = %d (%s)' %
+                      (r_1, s_1, r_2, s_2))
+                continue
+
+            diff = set_1.union(set_2)
+
+            if diff == set_1:
+
+                print('\tRule %d (%s) ⊆ %d (%s)' % (r_2, s_2, r_1, s_1))
+
+            elif diff == set_2:
+
+                print('\tRule %d (%s) ⊆ %d (%s)' % (r_1, s_1, r_2, s_2))
+
+
+def _sample_unmatched_sentences(missing_indices, error_phrases,
+                                correct_phrases):
+
+    print('\nDisplaying sample of unmatched sentences..')
+    print(configx.BREAK_LINE + '\n')
+
+    perm = np.random.permutation(len(missing_indices))
+    missing_indices = list(missing_indices)
+    perm = list(missing_indices[y] for y in perm)
+
+    for idx in perm[:200]:
+
+        print('Match %d: %s -> %s' %
+              (idx, error_phrases[idx], correct_phrases[idx]))
+
+
 def match_parallel_text_rules(input_source, input_target, input_start,
                               rule_file, rule_index=-1, language_dir=None,
                               unique_dir=None, output_dir=None,
                               output_prefix='test', print_unmatched=True,
-                              raise_on_error=True):
+                              raise_on_error=True, display_coverage=False):
 
     if language_dir is None:
 
@@ -740,15 +821,12 @@ def match_parallel_text_rules(input_source, input_target, input_start,
     for i in full_valid_indices:
         full_unique_indices.add(indices_predicates[i])
 
-    print('Number of unique pairs matched: %d/%d'
-          % (len(full_valid_indices), len(valid_indices)))
-
-    print('Number of unique errors matched: %d/%d'
-          % (len(full_unique_indices), len(unique_predicates)))
-
     missing_indices = valid_indices.difference(full_valid_indices)
 
     if output_dir is not None:
+
+        print('\nSaving unmatched sentences...')
+        print(configx.BREAK_LINE + '\n')
 
         rule_output_dir = os.path.join(output_dir, 'NONE')
 
@@ -758,69 +836,21 @@ def match_parallel_text_rules(input_source, input_target, input_start,
                        output_prefix, rule_starts=False)
         _write_mapping(unique_mapping, output_dir)
 
-    print('Displaying predicates matching multiple rules:')
+    if display_coverage:
 
-    for i in unique_coverage_data.keys():
-
-        matched_rules = unique_coverage_data[i]
-
-        if len(matched_rules) > 1:
-
-            predicate = unique_predicates[i]
-
-            print('Predicate %d: %s' % (i, predicate))
-            print('\tMatched by rules: %s' %
-                  ', '.join(str(x) for x in list(matched_rules)))
-
-    print('Finding supersets')
-
-    for r_1 in rule_coverage.keys():
-
-        s_1 = rule_data[r_1]['str']
-
-        if r_1 in empty_rules:
-
-            print('WARNING: Rule %d (%s) is empty' % (r_1, s_1))
-
-            continue
-
-        for r_2 in rule_coverage.keys():
-
-            s_2 = rule_data[r_2]['str']
-
-            if r_2 in empty_rules:
-
-                continue
-
-            elif r_2 >= r_1:
-
-                continue
-
-            set_1 = rule_coverage[r_1]
-            set_2 = rule_coverage[r_2]
-
-            if set_1 == set_2:
-
-                print('ERROR: Rule %d (%s) = %d (%s)' % (r_1, s_1, r_2, s_2))
-                continue
-
-            diff = set_1.union(set_2)
-
-            if diff == set_1:
-
-                print('Rule %d (%s) ⊆ %d (%s)' % (r_2, s_2, r_1, s_1))
-
-            elif diff == set_2:
-
-                print('Rule %d (%s) ⊆ %d (%s)' % (r_1, s_1, r_2, s_2))
-
-    perm = np.random.permutation(len(missing_indices))
-    missing_indices = list(missing_indices)
-    perm = list(missing_indices[y] for y in perm)
+        _display_multiple_coverage(unique_coverage_data, unique_predicates)
+        _display_coverage_supersets(rule_coverage, rule_data, empty_rules)
 
     if print_unmatched:
 
-        for idx in perm[:200]:
+        _sample_unmatched_sentences(
+            missing_indices, error_phrases, correct_phrases)
 
-            print('Match %d: %s -> %s' %
-                  (idx, error_phrases[idx], correct_phrases[idx]))
+    print('\nResults...')
+    print(configx.BREAK_LINE + '\n')
+
+    print('Number of unique pairs matched: %d/%d'
+          % (len(full_valid_indices), len(valid_indices)))
+
+    print('Number of unique errors matched: %d/%d'
+          % (len(full_unique_indices), len(unique_predicates)))

@@ -50,7 +50,7 @@ evals() {
 	touch $OUTPUT_DIR/gen.out.ref
 	touch $OUTPUT_DIR/gen.out.sys
 
-	CUDA_VISIBLE_DEVICES=1 fairseq-generate --path $MDL_DIR/checkpoint_best.pt --batch-size 64 --results-path output/tmp \
+	CUDA_VISIBLE_DEVICES=1 fairseq-generate --path $MDL_DIR/checkpoint_best.pt --batch-size 128 --results-path output/tmp \
 	--fp16 tmp >  $OUTPUT_DIR/gen.out
 
 	grep ^S $OUTPUT_DIR/gen.out > $OUTPUT_DIR/gen.out.org
