@@ -222,7 +222,7 @@ def get_files_recursive(data_dir, filetype):
     return ret_list
 
 
-def mkdir_p(path, file=False, verbose=True):
+def mkdir_p(path, file=False, verbose=False):
     """
     Function to recursively generate directories
 

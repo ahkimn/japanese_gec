@@ -7,8 +7,29 @@ import csv
 import os
 
 
-def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_err=None, start=None, rule=None,
-                top_k=10000, language_dir=None):
+def _in_dict(_dict, sentence):
+
+    out = list()
+
+    for token in sentence:
+
+        if token in _dict:
+
+            out.append(token)
+
+        else:
+
+            out.append('<unk>')
+
+    return out
+
+
+def eval_binary(src, ref, sys,
+                corpus_name='', rule_label='',
+                out_crt=None, out_err=None,
+                start=None, rule=None, idx=None,
+                top_k=32000, language_dir='database/full',
+                model_dicts=None):
 
     if language_dir is None:
 
@@ -84,7 +105,24 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
     assert(len(ref_lines) == len(sys_lines))
 
     n_lines = len(ref_lines)
-    ret = 0
+    n_correct = 0
+
+    error_indices = list()
+    correct_indices = list()
+
+    if idx is not None:
+
+        corpus_indices = list()
+
+        idx = open(idx, "r")
+
+        for j in idx.readlines():
+
+            corpus_indices.append(int(j))
+
+    else:
+
+        corpus_indices = list(range(n_lines))
 
     for i in range(n_lines):
 
@@ -92,59 +130,62 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
         text_ref = ref_lines[i].strip().split(' ')
         text_sys = sys_lines[i].strip().split(' ')
 
-        indices_src = list(tagger.parse_node(j, top_k) for j in text_src)
-        indices_ref = list(tagger.parse_node(j, top_k) for j in text_ref)
-        indices_sys = list(tagger.parse_node(j, top_k) for j in text_sys)
+        if model_dicts is not None:
 
-        tokens_src = list(tagger.parse_index(k) for k in indices_src)
-        tokens_ref = list(tagger.parse_index(k) for k in indices_ref)
-        tokens_sys = list(tagger.parse_index(k) for k in indices_sys)
+            text_src = _in_dict(model_dicts[0], text_src)
+            text_ref = _in_dict(model_dicts[1], text_ref)
+            text_sys = _in_dict(model_dicts[1], text_sys)
 
-        if len(indices_ref) == 0:
+        if starts is not None:
 
-            n_lines -= 1
+            indices = starts[i]
+
+            _src = ' '.join(text_src[indices[0]: indices[1]])
+            _ref = ' '.join(text_ref[indices[2]: indices[3]])
+            _sys = ' '.join(text_sys[indices[2]: indices[3]])
 
         else:
 
-            if starts is not None:
+            _src = ' '.join(text_src)
+            _ref = ' '.join(text_ref)
+            _sys = ' '.join(text_sys)
 
-                indices = starts[i]
+        if (_ref == _sys):
 
-                _src = ' '.join(tokens_src[indices[0]: indices[1]])
-                _ref = ' '.join(tokens_ref[indices[2]: indices[3]])
-                _sys = ' '.join(tokens_sys[indices[2]: indices[3]])
+            if out_crt is not None:
 
-            else:
+                out_crt.write(
+                    ','.join([str(i), _src, _ref, _sys]) + os.linesep)
 
-                _src = ' '.join(tokens_src)
-                _ref = ' '.join(tokens_ref)
-                _sys = ' '.join(tokens_sys)
+            n_correct += 1
+            correct_indices.append(corpus_indices[i])
 
-            if (_ref == _sys):
+        else:
 
-                if out_crt is not None:
-
-                    out_crt.write(
-                        ','.join([str(i), _src, _ref, _sys]) + os.linesep)
-
-                ret += 1
-
-            elif out_err is not None:
+            if out_err is not None:
 
                 out_err.write(
                     ','.join([str(i), _src, _ref, _sys]) + os.linesep)
 
-    ret /= n_lines
+            error_indices.append(corpus_indices[i])
+
+    acc = n_correct / n_lines
+
+    ret = dict()
+    ret['correct'] = n_correct
+    ret['lines'] = n_lines
+    ret['correct_indices'] = correct_indices
+    ret['incorrect_indices'] = error_indices
 
     if out_crt is not None:
 
-        out_crt.write('Score,%4f\n' % ret)
+        out_crt.write('Score,%4f\n' % acc)
 
     if out_err is not None:
 
-        out_err.write('Score,%4f\n' % ret)
+        out_err.write('Score,%4f\n' % acc)
 
-    print('Binary accuracy on rule %s: %6f' % (rule_label, ret))
+    print('Binary accuracy on rule %s: %6f' % (rule_label, acc))
 
     if rule_strings is not None:
         print('Rule string: %s -> %s' % tuple(rule_strings))
@@ -152,7 +193,8 @@ def eval_binary(src, ref, sys, corpus_name='', rule_label='', out_crt=None, out_
     score_type = 'binary' if starts is not None else 'binary_full'
 
     if rule_label != '':
-        __update_rule_file(score_type, model_name, ret, corpus_name, rule_label, rule_strings, n_lines)
+        update_rule_file(score_type, model_name, acc,
+                         corpus_name, rule_label, rule_strings, n_lines)
 
     return ret
 
@@ -229,7 +271,7 @@ def eval_f(ref, sys, top_k=10000, alpha=0.5):
     return ret
 
 
-def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule_strings=None, n_lines=0):
+def update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule_strings=None, n_lines=0):
 
     f = './comparison/%s/score_%s.csv' % (rule_dir, score_type)
     rule_label = str(rule_label)
@@ -317,5 +359,3 @@ def __update_rule_file(score_type, model_name, score, rule_dir, rule_label, rule
     writer.writerows(data)
 
     data_file.close()
-
-

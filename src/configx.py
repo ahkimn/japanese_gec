@@ -116,7 +116,7 @@ CONST_MAX_SENTENCE_LENGTH = 40
 '''
 Constants from previous code
 '''
-CONST_MAX_SEARCH_TOKEN_INDEX = 5000
+CONST_MAX_SEARCH_TOKEN_INDEX = 100000
 
 '''
 Specific files

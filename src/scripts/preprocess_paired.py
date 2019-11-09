@@ -33,9 +33,6 @@ def _split_sentence(sentence, delimiters):
 
 def _match_token_indices(tokens, template_indices):
 
-    print(tokens)
-    print(template_indices)
-
     chars = 0
     start = -1
     end = -1
@@ -58,7 +55,9 @@ def pre_process_delimited_txt(
     input_file, output_source,
     output_target, output_start,
     err_delimiters=('<', '>'), crt_delimiters=('(', ')'),
-    sentence_delimiter='\t', sentence_end='。'
+    sentence_delimiter='\t', sentence_end='。',
+    raise_on_error=False,
+    cleaned_file=None
 ):
 
     seen_dict = dict()
@@ -70,19 +69,22 @@ def pre_process_delimited_txt(
     util.mkdir_p(output_source, file=True)
     util.mkdir_p(output_target, file=True)
     util.mkdir_p(output_start, file=True)
+    valid_lines = list()
 
     with open(input_file, "r", encoding="utf-8") as in_file:
 
         line_number = 1
-        for line in in_file.readlines():
 
-            print('line: %s' % line)
-            line = line.replace(sentence_end, '')
+        for raw_line in in_file.readlines():
+
+            print('line %d: %s' % (line_number, raw_line))
+            line = raw_line.replace(sentence_end, '')
             line = line.strip().split(sentence_delimiter)
 
             if len(line) != 2:
                 print("ERROR IN LINE %2d: MORE THAN TWO SENTENCES IN LINE" %
                       line_number)
+                # missed_indices.append(line_number)
                 continue
 
             source_line = re.sub(r'\s+|　', '', line[0])
@@ -106,6 +108,8 @@ def pre_process_delimited_txt(
             if base in seen_dict:
                 print("ERROR IN LINE %2d: BASE SENTENCE PREVIOUSLY SEEN" %
                       line_number)
+                if raise_on_error:
+                    raise
                 continue
             else:
                 seen_dict[base] = 1
@@ -113,6 +117,8 @@ def pre_process_delimited_txt(
             if source_line == '' or target_line == '':
                 print('ERROR IN LINE %2d: EMPTY SOURCE OR TARGET SENTENCE' %
                       line_number)
+                if raise_on_error:
+                    raise
                 continue
 
             try:
@@ -126,6 +132,8 @@ def pre_process_delimited_txt(
 
                 print('ERROR IN LINE %2d: UNABLE TO PARSE SENTENCE' %
                       line_number)
+                if raise_on_error:
+                    raise
                 continue
 
             source_tokens = languages.parse(source, configx.CONST_PARSER, None)
@@ -148,6 +156,8 @@ def pre_process_delimited_txt(
                 print(
                     'ERROR IN LINE %2d: ERROR AND CORRECTION PHRASES DO NOT \
                     COINCIDE WITH TOKEN BOUNDARIES' % line_number)
+                if raise_on_error:
+                    raise
                 continue
 
             source_text.append(' '.join(source_tokens))
@@ -156,9 +166,17 @@ def pre_process_delimited_txt(
             starts.append([err_start, err_end, crt_start, crt_end])
 
             line_number += 1
-            print(line_number)
+            valid_lines.append(raw_line)
 
     in_file.close()
+
+    if cleaned_file is not None:
+        cleaned_file = open(cleaned_file, 'w+')
+        for ln in valid_lines:
+
+            cleaned_file.write(ln)
+        cleaned_file.close()
+
     source_file = open(output_source, "w+")
     target_file = open(output_target, "w+")
     start_file = open(output_start, "w+")

@@ -5,17 +5,20 @@
 # Date Last Modified: 10/10/2019
 # Python Version: 3.7
 
-import csv
 import numpy as np
 import os
 import re
 
 from . import convert
+from . import database
 from . import configx
 from . import languages
 from . import process
 from . import replace
+from . import rules
 from . import util
+
+RULE_FILE_DIRECTORY = 'rules'
 
 
 def _matrices(text, token_tagger, pos_taggers, n_max=50):
@@ -85,7 +88,7 @@ def _matrices(text, token_tagger, pos_taggers, n_max=50):
 # Maybe do string-based in future
 #   parser-agnostic (but much much slower)
 def _confirm_error(token_tagger, pos_taggers,
-                   match_data, rule_data, unique_matrices,
+                   coverage_data, rule_data, unique_matrices,
                    correct_matrices, error_matrices,
                    correct_phrases, error_phrases,
                    possible_classes):
@@ -99,6 +102,11 @@ def _confirm_error(token_tagger, pos_taggers,
         correct_phrase, configx.CONST_PARSER, None)
     nodes_error, pos_error = languages.parse_full(
         error_phrase, configx.CONST_PARSER, None)
+
+    print("\tGenerating template phrases...")
+
+    print("\n\tCorrect: " + ' | '.join(nodes_correct))
+    print("\tError: " + ' | '.join(nodes_error))
 
     pos_correct = np.array(list(
         languages.parse_node_matrix(pos_token, pos_taggers)
@@ -117,10 +125,10 @@ def _confirm_error(token_tagger, pos_taggers,
     n_correct = len(selections)
     n_error = len(created) + len(altered) + len(preserved)
 
-    indices = match_data['indices']
-    forms = match_data['forms']
-    pos = np.moveaxis(match_data['pos'], 0, -1)
-    starts = match_data['starts']
+    indices = coverage_data['indices']
+    forms = coverage_data['forms']
+    pos = np.moveaxis(coverage_data['pos'], 0, -1)
+    starts = coverage_data['starts']
 
     correct_token = correct_matrices['token'][indices]
     error_token = error_matrices['token'][indices]
@@ -189,7 +197,7 @@ def _confirm_error(token_tagger, pos_taggers,
 
         alterer = replace.Morpher((nodes_correct[m[1]], nodes_error[m[0]]))
 
-        print('Alteration of token: %s' % alterer.get_rule())
+        print('\n\tAlteration of token: %s' % alterer.get_rule())
 
         n_print = 10
         print_perm = np.random.permutation(n_matches)[:n_print].tolist()
@@ -200,7 +208,7 @@ def _confirm_error(token_tagger, pos_taggers,
             final_index = -1
             final_token = ''
             base_token = token_tagger.parse_index(
-                correct_token[j, starts[j] + m[0]])
+                correct_token[j, starts[j] + m[1]])
 
             base_form = template_correct[j, m[1], -1]
             form_info = form_pos.get(base_form, None)
@@ -228,11 +236,13 @@ def _confirm_error(token_tagger, pos_taggers,
                     # Take most frequent substitution
                     t = min(valid_tokens)
                     final_token = token_tagger.parse_index(t)
-
-                    # if len(base_token) - len(new_token) \
-                    #         == alterer.del_length():
-
                     final_index = t
+
+                    if alterer.is_deletion() and \
+                        (len(base_token) - len(final_token)
+                            != alterer.del_length()):
+
+                        final_index = -1
 
             if final_index == -1:
 
@@ -241,29 +251,15 @@ def _confirm_error(token_tagger, pos_taggers,
                     final_token = alterer.morph(base_token)
                     final_index = token_tagger.add_node(final_token)
 
-                elif alterer.is_substitution() and alterer.can_morph():
+                elif (alterer.is_substitution() or alterer.is_addition()) \
+                        and alterer.can_morph():
 
-                    sub_token = alterer.morph(base_token)
-                    sub_node, sub_pos = \
-                        languages.parse_full(sub_token, configx.CONST_PARSER,
-                                             None)
+                    sub_token = \
+                        alterer.morph_pos(base_token, base_form, token_tagger,
+                                          pos_taggers, configx.CONST_PARSER,
+                                          template_error[j, m[0]], match_sel)
 
-                    if len(sub_node) > 1:
-                        continue
-
-                    sub_node = token_tagger.parse_node(sub_node[0])
-                    sub_pos = list(pos_taggers[q].parse_node(
-                        sub_pos[q][0]) for q in range(len(pos_taggers)))
-
-                    valid = (sub_pos[-1] == base_form)
-
-                    for x in match_sel:
-
-                        if sub_pos[x] != template_error[j, m[0], x]:
-
-                            valid = False
-
-                    if valid:
+                    if sub_token is not None:
 
                         final_token = sub_token
                         final_index = token_tagger.add_node(final_token)
@@ -280,7 +276,7 @@ def _confirm_error(token_tagger, pos_taggers,
 
             if j in print_perm:
 
-                print('\tMatch %d: %s -> %s' %
+                print('\t\tMatch %d: %s -> %s' %
                       (j + 1, base_token, final_token))
 
             template_error_token[j, m[0]] = final_index
@@ -342,8 +338,8 @@ def _confirm_error(token_tagger, pos_taggers,
             template_error_string = token_tagger.parse_indices(
                 template_error_token[i], delimiter='')
 
-            # template_correct_string = token_tagger.parse_indices(
-            #     template_correct_token[i], delimiter='')
+            template_correct_string = token_tagger.parse_indices(
+                template_correct_token[i], delimiter='')
 
             c = token_tagger.parse_indices(
                 error_token[i, :error_len[i]]).split(',')
@@ -357,6 +353,8 @@ def _confirm_error(token_tagger, pos_taggers,
                 char_len.append(char_len[-1] + len(t))
 
             try:
+                if template_error_string == template_correct_string:
+                    raise ValueError
 
                 # unchanged = list(m.start() for m
                 #                  in re.finditer(template_correct_string,
@@ -416,6 +414,8 @@ def _confirm_error(token_tagger, pos_taggers,
                 err = error_token[i][j:j + match_length]
                 crt = correct_tokens
 
+                # print(token_tagger.sentence_from_indices(error_token[i]))
+
                 matches_correct.append(err)
                 matches_error.append(crt)
                 ret_indices.append(indices[i])
@@ -423,11 +423,15 @@ def _confirm_error(token_tagger, pos_taggers,
                                    j, j + match_length])
 
     n_matches = len(matches_correct)
-    print('Number of matches found: %d' % n_matches)
+
+    print('\n' + configx.BREAK_SUBLINE + '\n')
+    print('\tNumber of matches found: %d\n' % n_matches)
+
+    print('\tMatched pairs:\n')
 
     for i in range(n_matches):
 
-        print('Sentence %d: %s -> %s' %
+        print('\t\tSentence %d: %s -> %s' %
               (ret_indices[i],
                token_tagger.sentence_from_indices(matches_correct[i]),
                token_tagger.sentence_from_indices(matches_error[i])))
@@ -444,250 +448,94 @@ def _confirm_error(token_tagger, pos_taggers,
     return ret
 
 
-def match_parallel_text_rules(input_source, input_target, input_start,
-                              rules_file, rule_index=-1, language_dir=None,
-                              unique_dir=None, output_dir=None,
-                              output_prefix='test', print_unmatched=True):
+def _unique_pairs(error_phrases, correct_phrases):
 
-    if language_dir is None:
-
-        token_tagger, pos_taggers = languages.load_default_languages()
-
-    else:
-
-        token_tagger, pos_taggers = languages.load_languages(language_dir)
-
-    print("\nLoading token database...")
+    print("\nFinding error phrases with null corrections...")
     print(configx.BREAK_LINE)
 
-    f = open(rules_file, 'r')
-    csv_reader = csv.reader(f, delimiter=',')
+    n_unq_pred = 0
 
-    iter_count = -1
-    current_rule_index = 0
+    unq_pred = dict()
+    unq_idx_unq_pred = dict()
+    unq_pred_unq_idx = dict()
 
-    if unique_dir is None:
-        unique_dir = configx.CONST_DEFAULT_DATABASE_DIRECTORY
-    unique_matrices = convert.load_unique_matrices(
-        unique_dir, pos_taggers)
-
-    error_phrases, correct_phrases = process.get_paired_phrases(
-        token_tagger, input_source, input_target, None)
-    n_sentences = len(error_phrases)
-
-    original_data = dict()
-
-    original_data['correct'] = open(input_target, 'r').readlines()
-    original_data['error'] = open(input_source, 'r').readlines()
-    original_data['start'] = open(input_start, 'r').readlines()
-
-    correct_matrices = _matrices(correct_phrases, token_tagger, pos_taggers)
-    error_matrices = _matrices(error_phrases, token_tagger, pos_taggers)
-
-    matched_count = 0
-
-    empty_rules = set()
-
-    full_matched_indices = set()
-    matched_indices = dict()
-
-    match_data = dict()
-    rule_data = dict()
-
-    unique_error_count = 0
-
-    unique_errors = dict()
-    unique_index = dict()
-    index_unique = dict()
-
-    indices_unique = dict()
+    s_idx_unq_idx = dict()
     removed_unique = set()
+    removed_indices = list()
 
-    matched_unique_indices = set()
+    ret = dict()
 
     for i in range(len(error_phrases)):
 
-        ep = error_phrases[i]
-        cp = correct_phrases[i]
+        pred = error_phrases[i]
+        tgt = correct_phrases[i]
 
-        if (ep == cp):
+        if (pred == tgt):
 
-            removed_unique.add(ep)
+            print('\tLine %d: %s == %s' % (i + 1, pred, tgt))
+
+            removed_unique.add(pred)
+            removed_indices.append(i)
             continue
 
-        if ep in unique_errors:
+        if pred in unq_pred:
 
-            unique_errors[ep].add(i)
-            indices_unique[i] = index_unique[ep]
+            unq_pred[pred].add(i)
+            s_idx_unq_idx[i] = unq_pred_unq_idx[pred]
 
         else:
 
-            unique_errors[ep] = set([i])
-            unique_index[unique_error_count] = ep
-            index_unique[ep] = unique_error_count
-            indices_unique[i] = unique_error_count
+            unq_pred[pred] = set([i])
+            unq_idx_unq_pred[n_unq_pred] = pred
+            unq_pred_unq_idx[pred] = n_unq_pred
+            s_idx_unq_idx[i] = n_unq_pred
 
-            unique_error_count += 1
+            n_unq_pred += 1
 
     for x in removed_unique:
 
-        if x in unique_errors:
+        if x in unq_pred:
 
-            set_idx = unique_errors.pop(x)
+            set_idx = unq_pred.pop(x)
 
             for idx in set_idx:
 
-                unique_idx = indices_unique.pop(idx)
+                unique_idx = s_idx_unq_idx.pop(idx)
 
-                if unique_idx in unique_index:
+                if unique_idx in unq_idx_unq_pred:
 
-                    unique_index.pop(unique_idx)
+                    unq_idx_unq_pred.pop(unique_idx)
 
-    valid_indices = set(indices_unique.keys())
+    valid_s_idx = set(s_idx_unq_idx.keys())
 
-    for rule in csv_reader:
+    ret['valid_sentences'] = valid_s_idx
+    ret['unique_predicate'] = unq_idx_unq_pred
+    ret['pair_unique_predicate'] = s_idx_unq_idx
+    ret['pred_pair'] = unq_pred
+    ret['removed_indices'] = removed_indices
 
-        iter_count += 1
-
-        if len(rule) < 2 or rule[0] == '#':
-
-            continue
-
-        elif iter_count == 0:
-
-            continue
-
-        current_rule_index += 1
-
-        if rule_index != -1 and rule_index != current_rule_index:
-
-            continue
-
-        rule_dict = convert.get_rule_info(rule, pos_taggers)
-
-        rule_data[current_rule_index] = rule_dict
-
-        possible_classes = convert.match_rule_templates(
-            rule_dict, unique_matrices)
-
-        pos_tags = rule_dict['pos']
-        selections = rule_dict['selections']
-
-        matched \
-            = convert.match_template_sentence(
-                correct_matrices, pos_tags, selections, possible_classes,
-                token_tagger, pos_taggers, 250000, -1, randomize=False)
-
-        confirmed = _confirm_error(
-            token_tagger, pos_taggers, matched,
-            rule_dict, unique_matrices,
-            correct_matrices, error_matrices,
-            correct_phrases, error_phrases,
-            possible_classes)
-
-        rule_count = confirmed['count']
-        rule_indices = confirmed['indices']
-
-        matched_count += rule_count
-        matched_indices[current_rule_index] = set(rule_indices)
-
-        match_data[current_rule_index] = confirmed
-
-        full_matched_indices.update(rule_indices)
-        print('Total matches so far: %d' % matched_count)
-        print('Total unique matches so far: %d' % len(full_matched_indices))
-
-        if rule_count == 0:
-
-            empty_rules.add(current_rule_index)
-
-        if rule_count != 0 and output_dir is not None:
-
-            rule_output_dir = os.path.join(output_dir, str(current_rule_index))
-
-            _write_outputs(confirmed, original_data, rule_output_dir,
-                           output_prefix, rule_starts=True)
-
-    full_unique_indices = set()
-    full_valid_indices = full_matched_indices.intersection(valid_indices)
-
-    for i in full_valid_indices:
-        full_unique_indices.add(indices_unique[i])
-
-    print('Number of unique pairs matched: %d/%d'
-          % (len(full_valid_indices), len(valid_indices)))
-
-    print('Number of unique errors matched: %d/%d'
-          % (len(full_unique_indices), len(unique_index)))
-
-    missing_indices = valid_indices.difference(full_valid_indices)
-
-    if output_dir is not None:
-
-        rule_output_dir = os.path.join(output_dir, 'NONE')
-
-        output = {'indices': missing_indices}
-
-        _write_outputs(output, original_data, rule_output_dir, output_prefix,
-                       rule_starts=False)
-
-    print('Finding supersets')
-
-    for r_1 in matched_indices.keys():
-
-        s_1 = rule_data[r_1]['str']
-
-        if r_1 in empty_rules:
-
-            print('WARNING: Rule %d (%s) is empty' % (r_1, s_1))
-
-            continue
-
-        for r_2 in matched_indices.keys():
-
-            s_2 = rule_data[r_2]['str']
-
-            if r_2 in empty_rules:
-
-                continue
-
-            elif r_2 >= r_1:
-
-                continue
-
-            set_1 = matched_indices[r_1]
-            set_2 = matched_indices[r_2]
-
-            if set_1 == set_2:
-
-                print('ERROR: Rule %d (%s) = %d (%s)' % (r_1, s_1, r_2, s_2))
-                continue
-
-            diff = set_1.union(set_2)
-
-            if diff == set_1:
-
-                print('Rule %d (%s) ⊆ %d (%s)' % (r_2, s_2, r_1, s_1))
-
-            elif diff == set_2:
-
-                print('Rule %d (%s) ⊆ %d (%s)' % (r_1, s_1, r_2, s_2))
-
-    perm = np.random.permutation(len(missing_indices))
-    missing_indices = list(missing_indices)
-    perm = list(missing_indices[y] for y in perm)
-
-    if print_unmatched:
-
-        for idx in perm[:100]:
-
-            print('%s -> %s' % (error_phrases[idx], correct_phrases[idx]))
+    return ret
 
 
-def _write_outputs(match_info, original_data, rule_output_dir,
+def _write_mapping(unique_mapping, output_dir, f_prefix='mapping'):
+
+    idx_unique = unique_mapping['pair_unique_predicate']
+    idx_file = os.path.join(output_dir, '%s_indices.txt' % f_prefix)
+    idx_file = open(idx_file, 'w+')
+
+    for i in idx_unique.keys():
+
+        j = idx_unique[i]
+        idx_file.write('%d,%d\n' % (i, j))
+
+
+def _write_outputs(match_info, unique_mapping, original_data, rule_output_dir,
                    output_prefix, rule_starts=False):
 
-    rule_indices = match_info['indices']
+    print('\tSaving rule output to directory: %s' % rule_output_dir)
+
+    confirmed_sentences = match_info['indices']
+    valid_indices = unique_mapping['valid_sentences']
 
     correct_lines = original_data['correct']
     error_lines = original_data['error']
@@ -711,14 +559,32 @@ def _write_outputs(match_info, original_data, rule_output_dir,
     output_indices = open(output_indices, 'w+')
     output_start = open(output_start, 'w+')
 
+    written_indices = list()
+
+    for j in range(len(confirmed_sentences)):
+
+        idx = confirmed_sentences[j]
+
+        if idx not in valid_indices:
+            continue
+
+        written_indices.append(idx)
+
+        if not rule_starts:
+
+            output_start.write(start_lines[idx])
+
+        else:
+
+            output_start.write(
+                ','.join(list(str(x)
+                              for x in match_info['starts'][j])) + os.linesep)
+
+        output_target.write(correct_lines[idx])
+        output_source.write(error_lines[idx])
+        output_indices.write(str(idx) + os.linesep)
+
     if rule_starts:
-
-        rule_starts = match_info['starts']
-
-        for i in rule_starts:
-
-            output_start.write(','.join(list(str(x)
-                                             for x in i)) + os.linesep)
 
         output_rule = open(output_rule, 'w+')
 
@@ -733,12 +599,228 @@ def _write_outputs(match_info, original_data, rule_output_dir,
         output_rule.write(rule_text + os.linesep)
         output_rule.write(rule_lengths + os.linesep)
 
-    for j in rule_indices:
+    print('\tNumber of sentences written: %d' % len(written_indices))
 
-        if not rule_starts:
 
-            output_start.write(start_lines[j])
+def match_parallel_text_rules(input_source, input_target, input_start,
+                              rule_file, rule_index=-1, language_dir=None,
+                              unique_dir=None, output_dir=None,
+                              output_prefix='test', print_unmatched=True,
+                              raise_on_error=True):
 
-        output_target.write(correct_lines[j])
-        output_source.write(error_lines[j])
-        output_indices.write(str(j) + os.linesep)
+    if language_dir is None:
+
+        token_tagger, pos_taggers = languages.load_default_languages()
+
+    else:
+
+        token_tagger, pos_taggers = languages.load_languages(language_dir)
+
+    current_rule_index = 0
+
+    error_phrases, correct_phrases = process.get_paired_phrases(
+        token_tagger, input_source, input_target, None)
+
+    unique_mapping = _unique_pairs(error_phrases, correct_phrases)
+    indices_predicates = unique_mapping['pair_unique_predicate']
+    valid_indices = unique_mapping['valid_sentences']
+    unique_predicates = unique_mapping['unique_predicate']
+
+    if raise_on_error:
+
+        if len(unique_mapping['removed_indices']) != 0:
+
+            raise ValueError("ERROR: Some error phrases have null corrections")
+
+    original_data = dict()
+
+    original_data['correct'] = open(input_target, 'r').readlines()
+    original_data['error'] = open(input_source, 'r').readlines()
+    original_data['start'] = open(input_start, 'r').readlines()
+
+    correct_matrices = _matrices(correct_phrases, token_tagger, pos_taggers)
+    error_matrices = _matrices(error_phrases, token_tagger, pos_taggers)
+
+    print("\nLoading token database...")
+    print(configx.BREAK_LINE)
+
+    if unique_dir is None:
+        unique_dir = configx.CONST_DEFAULT_DATABASE_DIRECTORY
+    unique_matrices = database.load_unique_matrices(
+        unique_dir, pos_taggers)
+
+    total_confirmed_count = 0
+
+    empty_rules = set()
+
+    full_covered_indices = set()
+    rule_coverage = dict()
+
+    unique_coverage_data = dict()
+    coverage_data = dict()
+    rule_data = dict()
+
+    # Load rule file
+    rule_file = os.path.join(RULE_FILE_DIRECTORY, '%s.csv' % rule_file)
+
+    for rule_dict in rules.parse_rule_file(rule_file, pos_taggers, rule_index):
+
+        if rule_index != -1:
+            current_rule_index = rule_index
+
+        else:
+            current_rule_index += 1
+
+        print('\nReading Rule %d: %s' % (current_rule_index, rule_dict['str']))
+        print(configx.BREAK_LINE)
+
+        rule_data[current_rule_index] = rule_dict
+
+        possible_classes = convert.match_rule_templates(
+            rule_dict, unique_matrices)
+
+        pos_tags = rule_dict['pos']
+        selections = rule_dict['selections']
+
+        matched \
+            = convert.match_template_sentence(
+                correct_matrices, pos_tags, selections, possible_classes,
+                token_tagger, pos_taggers, 250000, -1, randomize=False)
+
+        print('\n' + configx.BREAK_SUBLINE + '\n')
+
+        confirmed = _confirm_error(
+            token_tagger, pos_taggers, matched,
+            rule_dict, unique_matrices,
+            correct_matrices, error_matrices,
+            correct_phrases, error_phrases,
+            possible_classes)
+
+        confirmed_count = confirmed['count']
+        confirmed_sentences = confirmed['indices']
+
+        for i in confirmed_sentences:
+
+            unq_idx = indices_predicates[i]
+
+            if unq_idx in unique_coverage_data:
+
+                unique_coverage_data[unq_idx].add(current_rule_index)
+
+            else:
+
+                unique_coverage_data[unq_idx] = set([current_rule_index])
+
+        total_confirmed_count += confirmed_count
+        rule_coverage[current_rule_index] = set(confirmed_sentences[:])
+
+        coverage_data[current_rule_index] = confirmed
+
+        full_covered_indices.update(confirmed_sentences)
+
+        print('\n' + configx.BREAK_SUBLINE + '\n')
+
+        print('\tTotal matches so far: %d' % total_confirmed_count)
+        print('\tTotal unique matches so far: %d' % len(full_covered_indices))
+
+        if confirmed_count == 0:
+
+            empty_rules.add(current_rule_index)
+
+        if confirmed_count != 0 and output_dir is not None:
+
+            rule_output_dir = os.path.join(output_dir, str(current_rule_index))
+
+            _write_outputs(confirmed, unique_mapping, original_data,
+                           rule_output_dir, output_prefix, rule_starts=True)
+
+    full_unique_indices = set()
+    full_valid_indices = full_covered_indices.intersection(valid_indices)
+
+    for i in full_valid_indices:
+        full_unique_indices.add(indices_predicates[i])
+
+    print('Number of unique pairs matched: %d/%d'
+          % (len(full_valid_indices), len(valid_indices)))
+
+    print('Number of unique errors matched: %d/%d'
+          % (len(full_unique_indices), len(unique_predicates)))
+
+    missing_indices = valid_indices.difference(full_valid_indices)
+
+    if output_dir is not None:
+
+        rule_output_dir = os.path.join(output_dir, 'NONE')
+
+        output = {'indices': sorted(missing_indices)}
+
+        _write_outputs(output, unique_mapping, original_data, rule_output_dir,
+                       output_prefix, rule_starts=False)
+        _write_mapping(unique_mapping, output_dir)
+
+    print('Displaying predicates matching multiple rules:')
+
+    for i in unique_coverage_data.keys():
+
+        matched_rules = unique_coverage_data[i]
+
+        if len(matched_rules) > 1:
+
+            predicate = unique_predicates[i]
+
+            print('Predicate %d: %s' % (i, predicate))
+            print('\tMatched by rules: %s' %
+                  ', '.join(str(x) for x in list(matched_rules)))
+
+    print('Finding supersets')
+
+    for r_1 in rule_coverage.keys():
+
+        s_1 = rule_data[r_1]['str']
+
+        if r_1 in empty_rules:
+
+            print('WARNING: Rule %d (%s) is empty' % (r_1, s_1))
+
+            continue
+
+        for r_2 in rule_coverage.keys():
+
+            s_2 = rule_data[r_2]['str']
+
+            if r_2 in empty_rules:
+
+                continue
+
+            elif r_2 >= r_1:
+
+                continue
+
+            set_1 = rule_coverage[r_1]
+            set_2 = rule_coverage[r_2]
+
+            if set_1 == set_2:
+
+                print('ERROR: Rule %d (%s) = %d (%s)' % (r_1, s_1, r_2, s_2))
+                continue
+
+            diff = set_1.union(set_2)
+
+            if diff == set_1:
+
+                print('Rule %d (%s) ⊆ %d (%s)' % (r_2, s_2, r_1, s_1))
+
+            elif diff == set_2:
+
+                print('Rule %d (%s) ⊆ %d (%s)' % (r_1, s_1, r_2, s_2))
+
+    perm = np.random.permutation(len(missing_indices))
+    missing_indices = list(missing_indices)
+    perm = list(missing_indices[y] for y in perm)
+
+    if print_unmatched:
+
+        for idx in perm[:200]:
+
+            print('Match %d: %s -> %s' %
+                  (idx, error_phrases[idx], correct_phrases[idx]))

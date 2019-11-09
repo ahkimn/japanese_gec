@@ -55,10 +55,13 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
     delimiter = configx.CONST_SENTENCE_DELIMITER_TOKEN
     rule_nodes = list()
 
+    idx = 1
+
     # Iterate through each of the rules within the dataset
     for sub_dir in rules:
 
         correct, error = sub_dir.split('|||')
+        print('Rule %d: %s --> %s' % (idx, error, correct))
 
         nodes_correct, _ = languages.parse_full(
             correct, configx.CONST_PARSER, None)
@@ -94,7 +97,7 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
                         # Read file and update rule counts
                         try:
 
-                            j = int(f_suffix)
+                            j = int(f_suffix[:-1])
                             sub_rule_counts[-1] += 1
 
                             rule_data_files.append(f_path)
@@ -116,14 +119,19 @@ def get_dataset_files(data_directory, dataset_name, data_file_prefix, data_file_
                 data_files.append(rule_data_files)
                 pair_counts.append(rule_pair_counts)
 
+                print('\tNumber of Pairs: %d' % sum(rule_pair_counts))
+
             except ValueError:
 
                 continue
 
+            idx += 1
+
     return data_files, start_files, rule_nodes, sub_rule_counts, pair_counts
 
 
-def generate_dataset(data_files, start_files, rule_counts, pair_counts, training_ratio=0.7, validation_ratio=0.1, max_per_rule=5000, min_per_rule=100):
+def generate_dataset(data_files, start_files, rule_counts, pair_counts, training_ratio=0.9, validation_ratio=0.01,
+                     max_per_rule=25000, min_per_rule=2000, minimum_rule=250):
     """
     Function to generate a full dataset (training/validation/test) from a given set of data files
 
@@ -143,16 +151,19 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
         full_test (arr): Piars of sentences for test set (aggregate)
     """
     n_rules = len(rule_counts)
-
     # Array containing set of rules (numbers) that pass the max/min criterion
     valid_indices = list(range(n_rules))
     # Obtain total number of sentence pairs per each rule
     rule_pair_counts = list(sum(pair_counts[i]) for i in range(n_rules))
+    data_counts = dict()
 
     # Remove rules with too few pairs
     for j in range(n_rules):
 
-        if rule_pair_counts[j] < min_per_rule:
+        if rule_pair_counts[j] < minimum_rule:
+
+            raise ValueError('Rule %d has %d / %d required pairs' %
+                             (j + 1, rule_pair_counts[j], minimum_rule))
 
             valid_indices.remove(j)
 
@@ -187,6 +198,21 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
 
         prev_length = len(train_data)
 
+        total_sentences = sum(pair_counts[i])
+
+        if total_sentences < min_per_rule:
+            rule_max = min_per_rule
+
+        else:
+
+            rule_max = int((total_sentences - min_per_rule) / 2) \
+                + min_per_rule
+
+        if rule_max > max_per_rule:
+            rule_max = max_per_rule
+
+        print(total_sentences, rule_max)
+
         print("RULE: %d" % (i + 1))
 
         r_validation = list()
@@ -206,7 +232,8 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
                 sentence_starts.append(list(int(i) for i in row))
 
         # Obtain a representative sample of data over sub-rules
-        n_per = representative_sample(pair_counts[i], min(sum(pair_counts[i]), max_per_rule))
+        n_per = representative_sample(
+            pair_counts[i], min(sum(pair_counts[i]), rule_max))
 
         for j in range(n_subrules):
 
@@ -219,8 +246,7 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
 
                 data, starts = sample_from_csv(
                     subrule_file, sentence_starts[subrule_index], n_per[j],
-                    training_ratio, validation_ratio, max_per_rule)
-
+                    training_ratio, validation_ratio, rule_max)
             except:
                 continue
 
@@ -248,15 +274,18 @@ def generate_dataset(data_files, start_files, rule_counts, pair_counts, training
         print("Lengths: %d, %d, %d" %
               (len(train_data) - prev_length, len(r_validation), len(r_test)))
 
+        data_counts[valid_indices[i] + 1] = \
+            [len(train_data) - prev_length, len(r_validation), len(r_test)]
+
     data = (train_data, validation_data, test_data,
             full_validation, full_test)
     data_starts = (train_starts, validation_starts, test_starts,
                    full_validation_starts, full_test_starts)
 
-    return data, data_starts
+    return data, data_starts, data_counts
 
 
-def sample_from_csv(file_path, starts, count, training_ratio, validation_ratio, max_total=5000):
+def sample_from_csv(file_path, starts, count, training_ratio, validation_ratio, max_total=10000):
     """
     Sample count sentence (pairs) from a given CSV file
 
@@ -273,7 +302,6 @@ def sample_from_csv(file_path, starts, count, training_ratio, validation_ratio, 
     """
     f = open(file_path, "r")
 
-
     csv_reader = csv.reader(f)
     rows = list(row for row in csv_reader)
     assert(len(rows) == len(starts))
@@ -285,7 +313,6 @@ def sample_from_csv(file_path, starts, count, training_ratio, validation_ratio, 
     n_training = int(count * training_ratio)
     n_validation = int(count * validation_ratio)
     n_test = count - n_training - n_validation
-
 
     f.close()
 
@@ -361,7 +388,8 @@ def representative_sample(counts, max_total):
 
 
 def save_as_corpus(source_tagger, target_tagger, sentence_list, starts_list,
-                   prefix, directory, raw_text=True, bpe=False, min_length=3, rule_nodes=None):
+                   prefix, directory, raw_text=True, bpe=False, min_length=3, rule_nodes=None,
+                   print_every=10000):
     """
     Save dataset files as corpus text
 
@@ -377,8 +405,18 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, starts_list,
     if not os.path.isdir(directory):
         util.mkdir_p(directory)
 
-    error_data = []
-    correct_data = []
+    error_file = os.path.join(
+        directory, prefix + "_" + configx.CONST_ERRORED_PREFIX)
+    correct_file = os.path.join(
+        directory, prefix + "_" + configx.CONST_CORRECT_PREFIX)
+    starts_file = os.path.join(
+        directory, prefix + "_" + configx.CONST_STARTS_PREFIX)
+
+    error_file = open(error_file, "w+")
+    correct_file = open(correct_file, "w+")
+    starts_file = open(starts_file, "w+")
+
+    n_failed = 0
 
     for j in range(len(sentence_list)):
 
@@ -391,6 +429,9 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, starts_list,
         correct_tokens, _ = languages.parse_full(
             correct_sentence, configx.CONST_PARSER, None)
 
+        if j % print_every == 0:
+            print('\tProcessed sentence %d / %d' % (j, len(sentence_list)))
+
         if bpe:
 
             # TODO
@@ -400,28 +441,34 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, starts_list,
 
             if raw_text:
 
-                error_data.append(error_tokens)
-                correct_data.append(correct_tokens)
+                err = error_tokens
+                crt = correct_tokens
 
             else:
 
                 # Convert tokens into integers
-                error_data.append(source_tagger.parse_sentence(error_tokens))
-                correct_data.append(
-                    target_tagger.parse_sentence(correct_tokens))
+                err = source_tagger.parse_sentence(error_tokens)
+                crt = target_tagger.parse_sentence(correct_tokens)
 
-    assert(len(error_data) == len(correct_data))
+        if len(err) >= min_length and len(crt) >= min_length:
 
-    error_file = os.path.join(
-        directory, prefix + "_" + configx.CONST_ERRORED_PREFIX)
-    correct_file = os.path.join(
-        directory, prefix + "_" + configx.CONST_CORRECT_PREFIX)
-    starts_file = os.path.join(
-        directory, prefix + "_" + configx.CONST_STARTS_PREFIX)
+            # Write integer "sentences" into file
+            error_file.write(" ".join(list(str(m) for m in err)))
+            correct_file.write(" ".join(list(str(m) for m in crt)))
+            starts_file.write(str(starts_list[j]))
 
-    error_file = open(error_file, "w+")
-    correct_file = open(correct_file, "w+")
-    starts_file = open(starts_file, "w+")
+            error_file.write(os.linesep)
+            correct_file.write(os.linesep)
+            starts_file.write(os.linesep)
+
+        else:
+
+            n_failed += 1
+
+            # print(err)
+            # print(crt)
+
+    print('Number of failed sentences: %d' % n_failed)
 
     if rule_nodes is not None:
 
@@ -433,144 +480,3 @@ def save_as_corpus(source_tagger, target_tagger, sentence_list, starts_list,
         rules_file.write(os.linesep)
         rules_file.write(",".join(list(str(len(i)) for i in rule_nodes)))
         rules_file.write(os.linesep)
-
-    for j in range(len(error_data)):
-
-        if len(error_data[j]) >= min_length and len(correct_data[j]) >= min_length:
-
-            # Write integer "sentences" into file
-            error_file.write(" ".join(list(str(m) for m in error_data[j])))
-            correct_file.write(" ".join(list(str(m) for m in correct_data[j])))
-            starts_file.write(str(starts_list[j]))
-
-            error_file.write(os.linesep)
-            correct_file.write(os.linesep)
-            starts_file.write(os.linesep)
-
-        else:
-
-            print("Paired data of lengths %2d and %2d do not satisfy minimum length requirement of %2d" %
-                  (len(correct_data[j]), len(error_data[j]), min_length))
-
-
-def save_dataset(data_directory=configx.CONST_TEXT_OUTPUT_DIRECTORY,
-                 dataset_name=configx.CONST_TEXT_OUTPUT_PREFIX,
-                 data_file_prefix=configx.CONST_SENTENCE_FILE_PREFIX,
-                 data_file_type=configx.CONST_SENTENCE_FILE_SUFFIX,
-                 corpus_save_dir=configx.CONST_CORPUS_SAVE_DIRECTORY,
-                 source_language_dir=configx.CONST_UPDATED_SOURCE_LANGUAGE_DIRECTORY,
-                 target_language_dir=configx.CONST_UPDATED_TARGET_LANGUAGE_DIRECTORY):
-    """
-    Generate a dataset and accompanying languages
-
-    Args:
-        data_directory (str, optional): Directory containing datasets
-        dataset_name (str, optional): Dataset folder name
-        data_file_prefix (str, optional): Dataset text file prefix for rule subtypes
-        data_file_type (str, optional): Datset text file type
-        corpus_output_dir (str, optional): Output directory of dataset corpus
-        source_language_dir (str, optional): Relative path of save directory for the source Language class instances
-        target_language_dir (str, optional): Relative path of save directory for the target Language class instances
-    """
-    # Obtain files for dataset
-    data_files, start_files, rule_nodes, rule_counts, pair_counts = get_dataset_files(
-        data_directory, dataset_name, data_file_prefix, data_file_type)
-
-    # Generate dataset
-    dataset, dataset_starts = generate_dataset(
-        data_files, start_files, rule_counts, pair_counts)
-
-    print(configx.BREAK_LINE)
-    print("Finished generating dataset...")
-
-    train_data, validation_data, test_data, full_validation, full_test = dataset
-    train_starts, validation_starts, test_starts, full_validation_starts, full_test_starts = dataset_starts
-
-    # Uncomment this if running first time on new dataset
-    print("Updating source language")
-    # Generate and update source languages
-    token_tagger = languages.Language(True)
-    pos_taggers = [languages.Language(), languages.Language(
-    ), languages.Language(), languages.Language(), languages.Language(True)]
-
-    if not os.path.isdir(source_language_dir):
-        util.mkdir_p(source_language_dir)
-
-    # Update languages with new tokens from training data
-    print("\tAdding data from train dataset")
-    update_languages.update_languages(
-        token_tagger, pos_taggers, train_data, source_language_dir)
-
-    # Update languages with new tokens from validation data
-    print("\tAdding data from validation dataset")
-    for validation_rule in validation_data:
-        update_languages.update_languages(
-            token_tagger, pos_taggers, validation_rule, source_language_dir)
-
-    # Update languages with new tokens from test data
-    print("\tAdding data from test dataset")
-    for test_rule in test_data:
-        update_languages.update_languages(
-            token_tagger, pos_taggers, test_rule, source_language_dir)
-
-    print("Updating target language")
-    token_tagger = languages.Language(True)
-    pos_taggers = [languages.Language(), languages.Language(
-    ), languages.Language(), languages.Language(), languages.Language(True)]
-
-    if not os.path.isdir(target_language_dir):
-        util.mkdir_p(target_language_dir)
-
-    # Update languages with new tokens from training data
-    print("\tAdding data from train dataset")
-    update_languages.update_languages(
-        token_tagger, pos_taggers, train_data, target_language_dir, False)
-
-    # Update languages with new tokens from validation data
-    print("\tAdding data from validation dataset")
-    for validation_rule in validation_data:
-        update_languages.update_languages(
-            token_tagger, pos_taggers, validation_rule, target_language_dir, False)
-
-    # Update languages with new tokens from test data
-    print("\tAdding data from test dataset")
-    for test_rule in test_data:
-        update_languages.update_languages(
-            token_tagger, pos_taggers, test_rule, target_language_dir, False)
-
-     # Location to save the corpus data
-    if not os.path.isdir(corpus_save_dir):
-        util.mkdir_p(corpus_save_dir)
-
-    print("Finished updating languages")
-
-    token_tagger_source, pos_taggers_source = languages.load_default_languages(
-        source_language_dir)
-    token_tagger_target, pos_taggers_target = languages.load_default_languages(
-        target_language_dir)
-
-    print("\nSaving training corpus data...")
-    save_as_corpus(token_tagger_source, token_tagger_target,
-                   train_data, train_starts, "train", corpus_save_dir)
-
-    print("\nSaving full validation corpus data...")
-    save_as_corpus(token_tagger_source, token_tagger_target,
-                   full_validation, full_validation_starts, "validation_full", corpus_save_dir)
-
-    print("\nSaving full test corpus data...")
-    save_as_corpus(token_tagger_source, token_tagger_target,
-                   full_test, full_test_starts, "test_full", corpus_save_dir)
-
-    print('')
-    for j in range(len(validation_data)):
-
-        print("Saving validation data for rule: %d" % (j + 1))
-        save_as_corpus(token_tagger_source, token_tagger_target,
-                       validation_data[j], validation_starts[j], "validation_" + str(j), corpus_save_dir, rule_nodes=rule_nodes[j])
-
-    print('')
-    for j in range(len(test_data)):
-
-        print("Saving test data for rule: %d" % (j + 1))
-        save_as_corpus(token_tagger_source, token_tagger_target,
-                       test_data[j], test_starts[j], "test_" + str(j), corpus_save_dir, rule_nodes=rule_nodes[j])

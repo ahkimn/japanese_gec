@@ -19,7 +19,7 @@ from . import languages
 from . import util
 
 
-def get_maximum_length(file_list, delimiter):
+def _get_n_sentences(file_list, delimiter):
     """
     Function to obtain the length of the longest sentence in a set of files
 
@@ -32,16 +32,11 @@ def get_maximum_length(file_list, delimiter):
     """
     start_time = time.time()
 
-    n_max = 125
     n_sentences = 0
-
-    n_files = len(file_list)
     n_completed = 0
 
     print("Determining length of longest sentence...")
     print(configx.BREAK_LINE)
-
-    tagger = configx.CONST_PARSER
 
     for filename in file_list[:]:
 
@@ -53,18 +48,6 @@ def get_maximum_length(file_list, delimiter):
         # print("Processing file: " + filename)
 
         sentences = f.readlines()
-
-        # for i in range(len(sentences)):
-
-            # sentence = sentences[i]
-
-            # # Obtain nodes (tokens) from MeCab parser on sentence
-            # nodes, _ = languages.parse_full(
-            #     sentence, tagger, delimiter)
-
-            # # Update maximum length
-            # n_max = max(n_max, len(nodes))
-
         n_sentences += len(sentences)
 
         elapsed_time_file = time.time() - start_time_file
@@ -78,18 +61,15 @@ def get_maximum_length(file_list, delimiter):
         del sentences
         gc.collect()
 
-
-
     print("\nCompleted processing of all files...")
     print(configx.BREAK_LINE)
 
     elapsed_time = time.time() - start_time
 
-    print("\nLength of longest sentence: %2d" % (n_max))
     print("Total sentences checked: %2d" % (n_sentences))
     print("Total elapsed time: %4f" % (elapsed_time))
 
-    return n_max, n_sentences
+    return n_sentences
 
 
 def _construct_database(data_dir, file_type, n_files,
@@ -104,6 +84,7 @@ def _construct_database(data_dir, file_type, n_files,
         n_files (TYPE): Number of corpus files to use
         language_dir (TYPE): Directory containing Language class instances used
             to tag
+        maximum_length (int, optional): Description
 
     Returns:
         (tuple): Tuple containing the following arrays:
@@ -135,14 +116,9 @@ def _construct_database(data_dir, file_type, n_files,
 
     # Very inefficient -_-
     # Should append to end of token_matrix and pos_matrix dynamically
-    found_max, n_sentences = get_maximum_length(file_list, delimiter)
+    n_sentences = _get_n_sentences(file_list, delimiter)
 
     n_max = maximum_length
-
-    if (maximum_length <= 0):
-
-        n_max = found_max
-
     n_pos_taggers = len(pos_taggers)
 
     # Initialize arrays to store data
@@ -237,17 +213,19 @@ def _construct_database(data_dir, file_type, n_files,
     return token_matrix, pos_matrix
 
 
-def obtain_unique(tokens, pos, max_token, display_every=100000):
+def _obtain_unique(tokens, pos, max_token, display_every=100000):
     """
     Function to obtain every possible unique token + part-of-speech tags
         + form combination
 
     Args:
-        tokens (TYPE): Two-dimensional matrix of form (n, 2), where the
-            second dimension is split to include both raw tokens and their forms
-        pos (TYPE): Two-dimensional matrix of form (n, 4), where the second
-            dimension size corresponds to the number of part-of-speech taggers used
-        max_token (TYPE): Maximum index of token to include in the output array
+        tokens (np.array): Two-dimensional matrix of form (n, 2), where the
+            second dimension is split to include both raw tokens and their
+            forms
+        pos (np.array): Two-dimensional matrix of form (n, 4), where the second
+            dimension size corresponds to the number of part-of-speech
+            taggers used
+        max_token (int): Maximum index of token to include in the output array
         display_every (int, optional): Determines how often a print message
             is called (in number of values processed)
 
@@ -284,7 +262,9 @@ def obtain_unique(tokens, pos, max_token, display_every=100000):
 
 
 def construct_default_database():
-
+    """
+    Cosntruct database from files specified by configx
+    """
     construct_database(configx.CONST_DEFAULT_DATABASE_DIRECTORY,
                        configx.CONST_CORPUS_TEXT_DIRECTORY,
                        configx.CONST_CORPUS_TEXT_FILETYPE,
@@ -304,16 +284,16 @@ def construct_database(save_dir,
         values) from a text corpus, tagged by a set of given languages
 
     Args:
-        save_dir (TYPE, optional): Path where the new data arrays are
+        save_dir (str, optional): Path where the new data arrays are
             to be saved
-        data_dir (TYPE, optional): Path to where the corpus text files
+        data_dir (str, optional): Path to where the corpus text files
             are located
-        file_type (TYPE, optional): Suffix of corpus text files
-        language_dir (TYPE, optional): Path to where the Language
+        file_type (str, optional): Suffix of corpus text files
+        language_dir (str, optional): Path to where the Language
             instances used for tagging are saved
-        save_prefix (TYPE, optional): Prefix used to save the data
+        save_prefix (str, optional): Prefix used to save the data
             arrays
-        n_files (TYPE, optional): Maximum number of corpus files to
+        n_files (int, optional): Maximum number of corpus files to
             pass through
     """
     data_save_pos = os.path.join(save_dir, '_'.join(
@@ -376,7 +356,9 @@ def load_database(load_dir, load_prefix):
 
 
 def clean_default_database():
-
+    """
+    Load and clean database at location specified in configx
+    """
     clean_database(save_dir=configx.CONST_DEFAULT_DATABASE_DIRECTORY,
                    load_prefix=configx.CONST_UNCLEANED_DATABASE_PREFIX,
                    save_prefix=configx.CONST_CLEANED_DATABASE_PREFIX)
@@ -400,8 +382,10 @@ def clean_database(save_dir,
             load are stored (and where to save the new data arrays)
         load_prefix (str, optional): Prefix of data arrays to load
         save_prefix (str, optional): Prefix of data arrays to save
+        load_dir (None, optional): Description
         max_length (int, optional): Maximum length of sentences in cleaned data
         max_token (int, optional): Maximum index of token in unique arrays
+        process_unique (bool, optional): Description
     """
     print("\nCleaning database files...")
     print(configx.BREAK_LINE)
@@ -433,18 +417,22 @@ def clean_database(save_dir,
     tokens = tokens_matrix[:, :, 0]
     forms = tokens_matrix[:, :, 1]
 
-    print("\nReducing matrix of unique sentences to those with length less than: %d..." % max_length)
+    print("\nReducing matrix of unique sentences to " +
+          "those with length less than: %d..." % max_length)
 
-    # Determine the first zeroed indices within each row (corresponds to index right after EOS)
+    # Determine the first zeroed indices within each row
+    #   (corresponds to index right after EOS)
     x = (tokens == 0).argmax(axis=1)
     # Determine which rows have their first zeroed indices below the max_length
     indices = (x <= max_length)
 
-    # Slice arrays to contain only those sentences that satisfy the max_length criterion
+    # Slice arrays to contain only those sentences that satisfy the max_length
+    #   criterion
     tokens = tokens[indices][:, :max_length]
     forms = forms[indices][:, :max_length]
 
-    print("\tNumber of sentences satisfying the length requirement: %d..." % len(tokens))
+    print("\tNumber of sentences satisfying the length requirement: %d..."
+          % len(tokens))
 
     print("\nSaving reduced data arrays...")
 
@@ -456,19 +444,23 @@ def clean_database(save_dir,
     for i in range(4):
 
         reduced = pos_matrix[indices][:, :max_length, i]
-        np.save(os.path.join(save_dir, configx.CONST_POS_SUFFIX + str(i)), reduced)
+        np.save(os.path.join(save_dir,
+                             configx.CONST_POS_SUFFIX + str(i)), reduced)
 
     np.save(os.path.join(save_dir, configx.CONST_LENGTHS_SUFFIX), x[indices])
 
     if process_unique:
 
-        # Collapse first dimensions of token and position matrices (for one-dimensional searching)
+        # Collapse first dimensions of token and position matrices
+        #   (for one-dimensional searching)
         tokens_matrix = tokens_matrix.reshape(-1, tokens_matrix.shape[2])
         pos_matrix = pos_matrix.reshape(-1, pos_matrix.shape[2])
 
-        print("\nDetermining unique tokens and part-of-speech tags for tokens up to index: %d..." % max_token)
+        print('\nDetermining unique tokens and part-of-speech ' +
+              'tags for tokens up to index: %d...' % max_token)
 
-        indices = obtain_unique(tokens_matrix, pos_matrix, max_token=max_token)
+        indices = _obtain_unique(
+            tokens_matrix, pos_matrix, max_token=max_token)
 
         unique_pos = pos_matrix[indices]
         unique_tokens = tokens_matrix[indices]
@@ -493,3 +485,248 @@ def clean_database(save_dir,
         np.save(save_sort_form, sort_form)
 
         print("Done!")
+
+
+def load_search_matrices(search_directory, pos_taggers):
+    '''
+    Load corpus matrices containing all unique sentences within database
+
+    Args:
+        search_directory (str): Directory where the sentence matrices
+            are stored
+        pos_taggers (arr): Array of Language instances used to tag
+            part-of-speech
+
+    Returns:
+        (arr): A list containing the following objects:
+            tokens (np.ndarray): Sentences in tokenized form (as a matrix
+                with sentences being represented by individual rows)
+            forms (np.ndarray): Form part-of-speech tag corresponding
+                to each token in tokens
+            lengths (np.ndarray): Lengths of each sentence (single array)
+            set_pos (arr): List of np.ndarray, each corresponding to a single
+                part-of-speech index
+    '''
+    # Get paths to files on disk
+    tokens = os.path.join(search_directory, configx.CONST_TOKENS_SUFFIX)
+    forms = os.path.join(search_directory, configx.CONST_FORM_SUFFIX)
+    lengths = os.path.join(search_directory, configx.CONST_LENGTHS_SUFFIX)
+
+    # Path prefix for part-of-speech arrays
+    # pos_prefix = os.path.join(search_directory, configx.CONST_POS_PREFIX)
+
+    set_pos = []
+
+    # Load matrices from disk
+    forms = np.load(forms + ".npy")
+    tokens = np.load(tokens + ".npy")
+    lengths = np.load(lengths + ".npy")
+
+    # Load each individual part-of-speech matrix (two-dimensional)
+    for i in range(len(pos_taggers) - 1):
+
+        arr = np.load(os.path.join(search_directory,
+                                   configx.CONST_POS_SUFFIX + str(i) + ".npy"))
+        arr = arr.reshape((1,) + arr.shape)
+        set_pos.append(arr)
+        del arr
+
+    set_pos = np.vstack(set_pos)
+
+    matrices = dict()
+    matrices['token'] = tokens
+    matrices['form'] = forms
+    matrices['pos'] = set_pos
+    matrices['lengths'] = lengths
+
+    return matrices
+
+
+def load_unique_matrices(database_directory, pos_taggers,
+                         save_prefix=configx.CONST_CLEANED_DATABASE_PREFIX):
+    '''
+    Loads data referencing unique tokens and part-of-speech tags from disk
+        and produces derivative matrices that indicate all possible
+        part-of-speech combinations and their sorted order
+
+    Args:
+        database_directory (str): Directory where the token/part-of-speech
+            matrices are stored
+        pos_taggers (arr): Array of Language instances used to tag
+            part-of-speech
+        save_prefix (str, optional): Prefix used for token/part-of-speech
+            matrices
+
+    Returns:
+        (arr): A list containing the following objects:
+            unique_tokens (np.ndarray): Matrix containing all unique tokens
+                within the corpus data
+            unique_pos (np.ndarray): Matrix containing all part-of-speech
+                combinations (ordered in same manner as unique_tokens)
+            sort (np.ndarray): Matrix denoting the order of the unique_pos if
+                they were sorted by a specific part-of-speech index
+            search_matrix (np.ndarray): Matrix denoting last positions of each
+                specific part-of-speech tag index when the array is sorted
+                along that index
+            unique_pos_complete (dict): Dictionary containing all possible
+                unique part-of-speech tag combinations (including form)
+            unique_pos_classes (dict): Dictionary containing all possible
+                unique part-of-speech tag combinations (excluding form)
+    '''
+    # Get paths to files on disk
+    unique_tokens = os.path.join(database_directory, '_'.join(
+        [save_prefix, configx.CONST_TOKENS_SUFFIX]))
+    unique_pos = os.path.join(database_directory, '_'.join(
+        [save_prefix, configx.CONST_POS_SUFFIX]))
+
+    sort = os.path.join(database_directory, configx.CONST_SORT_SUFFIX)
+    sort_form = os.path.join(
+        database_directory, configx.CONST_SORT_FORM_SUFFIX)
+
+    # Load files from disk
+    unique_tokens = np.load(unique_tokens + ".npy")
+    unique_pos = np.load(unique_pos + ".npy")
+
+    sort = np.load(sort + ".npy")
+    sort_form = np.load(sort_form + ".npy")
+
+    n_tokens = len(unique_tokens)
+
+    # Sort unique forms such that their corresponding tokens are in order
+    # (from index = 0 to index = configx.CONST_MAX_SEARCH_TOKEN_INDEX)
+    view = unique_tokens[sort_form, 1]
+
+    # Array to store final indices (of token) where each form is found
+    last_indices_form = [-1]
+
+    # Calculate last instance for all forms (pos_taggers[-1]
+    #   is the form tagger)
+    for k in range(pos_taggers[-1].n_nodes):
+
+        try:
+
+            last_start_form = max(0, last_indices_form[-1])
+
+            k_index = util.last(view, last_start_form, n_tokens, k, n_tokens)
+            # last_start = k_index
+
+            # If the form is not extant, set last index as equivalent
+            #   to previous form
+            if k_index == - 1:
+                k_index = last_indices_form[-1]
+
+            last_indices_form.append(k_index)
+
+        # Once configx.CONST_MAX_SEARCH_TOKEN_INDEX are reached, exception
+        #   is raised -> cancel loop
+        except Exception:
+
+            break
+
+    search_matrix = []
+
+    # For each part-of-speech index
+    # Determine the final location in which a specific tag within that index
+    #   (when sorted by the index) appears
+    for j in range(sort.shape[1]):
+
+        # Create a view of the part-of-speech matrix sorted by the index
+        view = unique_pos[sort[:, j], j]
+        last_indices_pos = [-1]
+        last_start_pos = 0
+
+        for k in range(pos_taggers[j].n_nodes):
+
+            try:
+
+                # last_start = max(0, last_indices_pos[-1])
+
+                k_index = util.last(view, last_start_pos,
+                                    n_tokens, k, n_tokens)
+                last_start_pos = k_index
+
+                if k_index == - 1:
+                    k_index = last_indices_pos[-1]
+
+                last_indices_pos.append(k_index)
+
+            # If the part-of-speech tag is not extant, set last
+            #   index as equivalent to previous form
+            except Exception:
+
+                break
+
+        last_indices_pos.append(n_tokens)
+        search_matrix.append(last_indices_pos)
+
+    # The form is the final index of the data extracted from
+    #   MeCab - order search_matrix accordingly
+    search_matrix.append(last_indices_form)
+    unique_pos_complete = dict()
+
+    # Determine all possible unique part-of-speech tag combinations
+    #   (including form)
+    for k in range(len(unique_pos)):
+
+        # Concatenate part-of-speech tags with token form
+        up = tuple(unique_pos[k]) + tuple(unique_tokens[k, 1:])
+
+        if up in unique_pos_complete:
+
+            unique_pos_complete[up].append(k)
+
+        else:
+            unique_pos_complete[up] = [k]
+
+    unique_pos_classes = dict()
+
+    # Determine all possible unique part-of-speech tag combinations
+    #   (excluding form)
+    for k in range(len(unique_pos)):
+
+        up = tuple(unique_pos[k])
+
+        if up in unique_pos_classes:
+
+            unique_pos_classes[up].append(k)
+
+        else:
+            unique_pos_classes[up] = [k]
+
+    form_pos = dict()
+
+    for k in range(len(unique_tokens)):
+
+        _form = unique_tokens[k, 1]
+        _token = unique_tokens[k, 0]
+        _pos = tuple(unique_pos[k])
+
+        if _form in form_pos:
+
+            if _pos in form_pos[_form]:
+
+                form_pos[_form][_pos].append(_token)
+
+            else:
+
+                form_pos[_form][_pos] = [_token]
+
+        else:
+
+            form_pos[_form] = dict()
+            form_pos[_form][_pos] = [_token]
+
+    sort = np.concatenate((sort, sort_form.reshape(-1, 1)), axis=1)
+
+    matrices = dict()
+    matrices['token'] = unique_tokens
+    matrices['pos'] = unique_pos
+
+    matrices['sort'] = sort
+    matrices['search'] = search_matrix
+
+    matrices['complete'] = unique_pos_complete
+    matrices['classes'] = unique_pos_classes
+    matrices['form_dict'] = form_pos
+
+    return matrices
