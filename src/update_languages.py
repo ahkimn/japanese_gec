@@ -59,12 +59,12 @@ def update_languages(token_tagger, pos_taggers, sentence_list, save_dir, source=
     # Save updated token tagger
     token_tagger.sort()
     token_tagger.save_dicts(token_prefix)
-    token_tagger.sample()
+    # token_tagger.sample()
 
     # Save updated pos_taggers
     for k in range(len(pos_taggers)):
 
         pos_taggers[k].sort()
         pos_taggers[k].save_dicts(pos_prefix + str(k))
-        pos_taggers[k].sample()
+        # pos_taggers[k].sample()
 

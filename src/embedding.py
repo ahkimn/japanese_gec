@@ -30,7 +30,7 @@ class IterFile():
                 yield(list(line.strip().split()))
 
 
-def construct_fasttext_model(src_save, tgt_save, data_dir=None, file_type='', filters=list(), n_files=-1):
+def construct_fasttext_model(src_save, tgt_save, data_dir=None, file_type='', filters=['type'], n_files=-1):
 
     start_time = time.time()
 
@@ -42,76 +42,76 @@ def construct_fasttext_model(src_save, tgt_save, data_dir=None, file_type='', fi
 
     assert(data_dir is not None and file_type != '')
     # Read corpus data
-    file_list = util.get_files_recursive(data_dir, file_type)
+    # file_list = util.get_files_recursive(data_dir, file_type)
 
-    n_sentences = 0
-    n_completed = 0
+    # n_sentences = 0
+    # n_completed = 0
 
     util.mkdir_p('./tmp')
     src_corpus = './tmp/src.cor'
     tgt_corpus = './tmp/tgt.cor'
-    f_src_corpus = open(src_corpus, 'w+')
-    f_tgt_corpus = open(tgt_corpus, 'w+')
+    # f_src_corpus = open(src_corpus, 'w+')
+    # f_tgt_corpus = open(tgt_corpus, 'w+')
 
-    for filename in file_list[:]:
+    # for filename in file_list[:12000]:
 
-        valid = False
+    #     valid = False
 
-        for j in filters:
+    #     for j in filters:
 
-            if j in filename:
+    #         if j in filename:
 
-                valid = True
+    #             valid = True
 
-        if not valid:
+    #     if not valid:
 
-            continue
+    #         continue
 
-        n_completed += 1
+    #     n_completed += 1
 
-        with open(filename, 'r', encoding='utf-8') as f:
+    #     with open(filename, 'r', encoding='utf-8') as f:
 
-            start_time_file = time.time()
-            # print("Processing file: " + filename)
+    #         start_time_file = time.time()
+    #         # print("Processing file: " + filename)
 
-            sentences = f.readlines()
+    #         sentences = f.readlines()
 
-            for i in range(len(sentences)):
+    #         for i in range(len(sentences)):
 
-                sentence = sentences[i]
-                paired_data = sentence.strip().split(',')
+    #             sentence = sentences[i]
+    #             paired_data = sentence.strip().split(',')
 
-                if len(paired_data) != 2:
-                    print('ERROR')
-                    continue
+    #             if len(paired_data) != 2:
+    #                 print('ERROR')
+    #                 continue
 
-                source_nodes = languages.parse(
-                    paired_data[0], PARSER, DELIMITER_TOKEN, True)
-                target_nodes = languages.parse(
-                    paired_data[1], PARSER, DELIMITER_TOKEN, True)
+    #             source_nodes = languages.parse(
+    #                 paired_data[0], PARSER, DELIMITER_TOKEN, True)
+    #             target_nodes = languages.parse(
+    #                 paired_data[1], PARSER, DELIMITER_TOKEN, True)
 
-                f_src_corpus.write(' '.join(source_nodes) + os.linesep)
-                f_tgt_corpus.write(' '.join(target_nodes) + os.linesep)
+    #             f_src_corpus.write(' '.join(source_nodes) + os.linesep)
+    #             f_tgt_corpus.write(' '.join(target_nodes) + os.linesep)
 
-            n_sentences += len(sentences)
+    #         n_sentences += len(sentences)
 
-            elapsed_time_file = time.time() - start_time_file
-            print("\tFile %2d of %2d processed..." %
-                  (n_completed, len(file_list)))
-            print("\tTime Elapsed: %4f" % elapsed_time_file)
+    #         elapsed_time_file = time.time() - start_time_file
+    #         print("\tFile %2d of %2d processed..." %
+    #               (n_completed, len(file_list)))
+    #         print("\tTime Elapsed: %4f" % elapsed_time_file)
 
-            f.close()
+    #         f.close()
 
-    print("\nCompleted processing of all files...")
-    print(BREAK_LINE)
+    # print("\nCompleted processing of all files...")
+    # print(BREAK_LINE)
 
-    f_src_corpus.close()
-    f_tgt_corpus.close()
+    # f_src_corpus.close()
+    # f_tgt_corpus.close()
 
-    elapsed_time = time.time() - start_time
+    # elapsed_time = time.time() - start_time
 
-    print("Total sentences checked: %2d" % (n_sentences))
-    print("Total elapsed time: %4f" % (elapsed_time))
+    # print("Total sentences checked: %2d" % (n_sentences))
+    # print("Total elapsed time: %4f" % (elapsed_time))
 
     print("\nTraining source model...")
     start_time = time.time()

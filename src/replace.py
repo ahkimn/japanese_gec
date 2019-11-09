@@ -1,6 +1,8 @@
 from difflib import SequenceMatcher
 from enum import Enum
 
+from . import languages
+
 
 class Morph(Enum):
 
@@ -16,6 +18,60 @@ class Operation(Enum):
     SUBSTITUTION = 3
     OTHER = 2
 
+
+VALID_KANA = {
+
+    'a': set(['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら',
+              'が', 'ざ', 'だ', 'ば', 'ぱ', 'わ', 'ん']),
+    'i': set(['い', 'き', 'し', 'ち', 'に', 'ひ', 'み', 'り', 'ぎ',
+              'じ', 'ぢ', 'び', 'ぴ', 'ゐ']),
+    'u': set(['う', 'く', 'す', 'つ', 'ぬ', 'ふ', 'む', 'ゆ', 'る',
+              'ぐ', 'ず', 'づ', 'ぶ', 'ぷ']),
+    'e': set(['え', 'け', 'せ', 'て', 'ね', 'へ', 'め', 'れ', 'げ',
+              'ぜ', 'で', 'べ', 'ぺ', 'ゑ']),
+    'o': set(['お', 'こ', 'そ', 'と', 'の', 'ほ', 'も', 'よ', 'ろ',
+              'ご', 'ぞ', 'ど', 'ぼ', 'ぽ', 'を']),
+    'ya': set(['きゃ', 'しゃ', 'ちゃ', 'にゃ', 'ひゃ', 'みゃ',
+               'りゃ', 'ぎゃ', 'じゃ', 'びゃ', 'ぴゃ']),
+    'yu': set(['きゅ', 'しゅ', 'ちゅ', 'にゅ', 'ひゅ', 'みゅ',
+               'りゅ', 'ぎゅ', 'じゅ', 'びゅ', 'ぴゅ']),
+    'yo': set(['きょ', 'しょ', 'ちょ', 'にょ', 'ひょ', 'みょ',
+               'りょ', 'ぎょ', 'じょ', 'びょ', 'ぴょ']),
+    'aa': set(['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゕ', 'ゖ',
+               'ゃ', 'ゅ', 'ょ'])
+}
+
+UNIQUE_KANA = set()
+KANA_TO_SET = dict()
+
+for kana_set in VALID_KANA.keys():
+
+    _current = VALID_KANA[kana_set]
+
+    UNIQUE_KANA = UNIQUE_KANA.union(_current)
+
+    for kana in _current:
+
+        KANA_TO_SET[kana] = kana_set
+
+
+def _get_search_order(kana):
+
+    order = list(kana)
+    kana_set = KANA_TO_SET[kana]
+
+    for k in VALID_KANA[kana_set]:
+
+        if k != kana:
+            order.append(k)
+
+    for s in VALID_KANA.keys():
+
+        if s != kana_set:
+
+            order += list(VALID_KANA[s])
+
+    return order
 
 class Morpher:
 
@@ -85,6 +141,95 @@ class Morpher:
             ret += self.end[self.match.size:]
 
         return ret
+
+    def _dir_morph(self, base, template):
+
+        if self.morph_type == Morph.HEAD_REPLACE:
+
+            return template + base[self.match.a:]
+
+        elif self.morph_type == Morph.TAIL_REPLACE:
+
+            tail_start = self.n_start - (self.match.size)
+
+            return base[:-tail_start] + template
+
+    def morph_pos(self, base, base_form, token_tagger, pos_taggers, mecab_tagger, template, match_indices):
+
+        if self._operation == Operation.ADDITION:
+
+            if self.n_end - self.n_start > 1:
+
+                return None
+
+            else:
+
+                if self.morph_type == Morph.TAIL_REPLACE:
+
+                    sub_template = self.end[self.n_start:]
+
+                elif self.morph_type == Morph.HEAD_REPLACE:
+
+                    sub_template = self.end[:self.n_end - self.n_start]
+
+                else:
+
+                    return None
+
+        elif self._operation == Operation.SUBSTITUTION:
+
+            if self.n_end - self.match.size > 1:
+
+                return None
+
+            else:
+
+                if self.morph_type == Morph.TAIL_REPLACE:
+
+                    sub_template = self.end[self.match.size:]
+
+                elif self.morph_type == Morph.HEAD_REPLACE:
+
+                    sub_template = self.end[:self.n_end - self.match.size]
+
+                else:
+
+                    return None
+
+        n_attempts = 0
+
+        search_order = _get_search_order(sub_template)
+
+        while n_attempts < len(search_order):
+
+            gen_token = self._dir_morph(base, search_order[n_attempts])
+            gen_node, gen_pos = \
+                languages.parse_full(gen_token, mecab_tagger, None)
+
+            if len(gen_node) == 1:
+
+                gen_node = token_tagger.parse_node(gen_node[0])
+                gen_pos = list(pos_taggers[q].parse_node(
+                    gen_pos[q][0]) for q in range(len(pos_taggers)))
+
+                valid = (gen_pos[-1] == base_form)
+
+                # Maybe add check if token equals base form (and same is true for tempalte)
+                #   kana-based parsing (i.e. ただよう may be correctly generated but won't
+                #   be parsed correctly by mecab)
+
+                for idx in match_indices:
+
+                    if gen_pos[idx] != template[idx]:
+
+                        valid = False
+
+                if valid:
+
+                    return gen_token
+
+            n_attempts += 1
+
 
     def is_deletion(self):
 

@@ -9,7 +9,7 @@ echo $FUNCTION
 
 preprocess(){
 
-	python mv_input.py $1;
+	python main.py mv_input corpus_name=$1;
 
 	PROCESS_DIR="$MODEL_DIR/$PREFIX/$1/preprocessed";
 	rm -r $PROCESS_DIR;
@@ -17,7 +17,7 @@ preprocess(){
 
 	fairseq-preprocess --source-lang source --target-lang target \
 	--trainpref input/$1/train --validpref input/$1/validation --testpref input/$1/test \
-	--destdir $PROCESS_DIR
+	--destdir $PROCESS_DIR --nwordstgt 50000 --nwordssrc 50000
 }
 
 train(){
@@ -29,7 +29,7 @@ train(){
 
 	CUDA_VISIBLE_DEVICES=1 \
 	fairseq-train $PROCESS_DIR \
-	--lr 0.1 --clip-norm 0.1 --dropout 0.1 --max-tokens 25000  --batch-size 96 \
+	--lr 0.1 --clip-norm 0.1 --dropout 0.1 --max-tokens 50000  --batch-size 64 \
     --arch fconv_jp_current --save-dir $MDL_DIR --fp16
 }
 
