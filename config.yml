@@ -1,20 +1,14 @@
-data_params:
-  raw_text_filetype: .txt
-directories:
-  data: ./data
-  raw_text: ./data/raw_text
-embedding_params:
-  fasttext_save: model/fasttext/fasttext.mdl
+BREAK_LINE: '=====================
+
+  '
+data_params: {source_corpus_filetype: .txt}
+directories: {data: /home/yukina/Projects/aitutor/japanese_gec/data, languages: /home/yukina/Projects/aitutor/japanese_gec/data/languages,
+  source_corpora: /home/yukina/Projects/aitutor/japanese_gec/data/source_corpora}
+language_params: {delimiter: "\u3002", index_node: in.pkl, node_count: nc.pkl, node_index: ni.pkl,
+  pad_index: 0, pad_token: '*', start_index: 2, start_token: START, stop_index: 3,
+  stop_token: STOP, syntactic_tag_prefix: st, token_prefix: t, unknown_index: 1, unknown_token: UNK}
 parser_params:
-  delimiter_index: 3
-  delimiter_token: "\u3002"
-  pad_index: 0
-  pad_token: PAD
-  start_index: 2
-  start_token: START
-  unknown_index: 1
-  unknown_token: UNKNOWN
-print_params:
-  break_halfline: "\t\t=========================================="
-  break_line: ==========================================================
-  break_subline: "\t=================================================="
+  delimiter: "\u3002"
+  parse_indices: [0, 1, 4, 5, 6]
+  parse_labels: [Part-of-speech, Part-of-speech Sub-category, Inflection, Conjugation,
+    Root Form]
