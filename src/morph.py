@@ -1,7 +1,14 @@
+# -*- coding: utf-8 -*-
+
+# Filename: morph.py
+# Date Created: 03/20/2019
+# Description: Morpher class and associated functions/helper classes
+# Python Version: 3.7
+
 from difflib import SequenceMatcher
 from enum import Enum
 
-from . import languages
+from . import parse
 
 
 class Morph(Enum):
@@ -73,6 +80,7 @@ def _get_search_order(kana):
 
     return order
 
+
 class Morpher:
 
     def __init__(self, template):
@@ -117,8 +125,25 @@ class Morpher:
 
         else:
 
-            raise ValueError("ERROR: Transformation %s -> %s \
-             is of unsupported morph type" % (self.start, self.end))
+            raise ValueError("ERROR: %s is of unsupported morph type"
+                             % self.print_template())
+
+    def print_template(self):
+
+        return 'Morph: %s -> %s' % (self.start, self.end)
+
+    def print_morph_type(self):
+
+        return 'Morph Type: %s' % str(self.morph_type)
+
+    def print_operation(self):
+
+        return 'Operation: %s' % str(self._operation)
+
+    def __str__(self):
+
+        return '\n'.join([self.print_template(), self.print_operation(),
+                         self.print_morph_type()])
 
     def del_length(self):
 
@@ -154,7 +179,8 @@ class Morpher:
 
             return base[:-tail_start] + template
 
-    def morph_pos(self, base, base_form, token_tagger, pos_taggers, mecab_tagger, template, match_indices):
+    def morph_pos(self, base, base_form, token_language, tag_languages,
+                  mecab_tagger, template, match_indices):
 
         if self._operation == Operation.ADDITION:
 
@@ -197,30 +223,31 @@ class Morpher:
                     return None
 
         n_attempts = 0
-
         search_order = _get_search_order(sub_template)
 
         while n_attempts < len(search_order):
 
             gen_token = self._dir_morph(base, search_order[n_attempts])
-            gen_node, gen_pos = \
-                languages.parse_full(gen_token, mecab_tagger, None)
+            gen_token, gen_tags = \
+                parse.parse_full(gen_token, mecab_tagger)
 
-            if len(gen_node) == 1:
+            if len(gen_token) == 1:
 
-                gen_node = token_tagger.parse_node(gen_node[0])
-                gen_pos = list(pos_taggers[q].parse_node(
-                    gen_pos[q][0]) for q in range(len(pos_taggers)))
+                gen_token = gen_token[0]
+                gen_tags = list(tag_languages[q].add_node(
+                    gen_tags[q][0]) for q in range(len(tag_languages)))
 
-                valid = (gen_pos[-1] == base_form)
+                valid = (gen_tags[-1] == base_form)
 
-                # Maybe add check if token equals base form (and same is true for tempalte)
-                #   kana-based parsing (i.e. ただよう may be correctly generated but won't
-                #   be parsed correctly by mecab)
+                # TODO
+                # Add check if token equals base form (and same is true for
+                #   template)
+                # i.e. kana-based parsing (i.e. ただよう may be correctly generated
+                #   but won't be parsed correctly by mecab)
 
                 for idx in match_indices:
 
-                    if gen_pos[idx] != template[idx]:
+                    if gen_tags[idx] != template[idx]:
 
                         valid = False
 
@@ -229,7 +256,6 @@ class Morpher:
                     return gen_token
 
             n_attempts += 1
-
 
     def is_deletion(self):
 
@@ -249,30 +275,5 @@ class Morpher:
 
     def can_morph(self):
 
-        return (self.morph_type == Morph.HEAD_REPLACE
-                or self.morph_type == Morph.TAIL_REPLACE)
-
-
-if __name__ == '__main__':
-
-    start = '分かっ'
-    end = '分かる'
-
-    base = 'しなかっ'
-
-    template = tuple([start, end])
-
-    a = Morpher(template)
-
-    print(a.morph(base))
-
-    start = 'おみやげ'
-    end = 'みやげ'
-
-    base = 'お皿'
-
-    template = tuple([start, end])
-
-    b = Morpher(template)
-
-    print(b.morph(base))
+        return (self.morph_type == Morph.HEAD_REPLACE or
+                self.morph_type == Morph.TAIL_REPLACE)

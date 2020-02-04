@@ -1,19 +1,94 @@
-# Filename: load.py
-# Author: Alex Kimn
-# E-mail: alex.kimn@outlook.com
-# Date Created: 18/06/2018
-# Date Last Modified: 10/10/2019
+# -*- coding: utf-8 -*-
+
+# Filename: parse.py
+# Date Created: 19/12/2019
+# Description: Helper functions
 # Python Version: 3.7
 
-'''
-Miscellaneous helper functions
-'''
-
+import argparse
 import errno
 import numpy as np
 import os
 
 from itertools import islice, chain
+
+from . import config
+
+cfg = config.parse()
+seed = cfg['seed']
+RS = np.random.RandomState(seed)
+
+
+def str_bool(_str: str):
+
+    if isinstance(_str, bool):
+
+        return _str
+
+    if _str.lower() in ('yes', 'true', 't', 'y'):
+
+        return True
+
+    elif _str.lower() in ('no', 'false', 'f', 'n'):
+
+        return False
+
+    else:
+
+        raise argparse.ArgumentTypeError('Value of boolean type expected')
+
+
+def get_files(data_dir: str, filetype: str, n_files: int=-1):
+    """
+    Obtain a list of files within a directory of a certain filetype
+
+    Args:
+        data_dir (str): Directory to search for corpus files
+        filetype (str): Filetype to filter for
+        n_files (int): Max number of files to return
+
+    Returns:
+        (list): List of paths to files satisfying requirements
+    """
+
+    # List of compliant files
+    file_list = list()
+
+    data_files = os.listdir(data_dir)
+
+    if n_files == -1:
+
+        n_files = len(data_files)
+
+    else:
+
+        n_files = min(len(data_files), n_files)
+
+    perm = RS.permutation(len(data_files))[:n_files]
+
+    for i in range(n_files):
+
+        filename = data_files[perm[i]]
+
+        if filename.endswith(filetype):
+
+            file_list.append(os.path.join(data_dir, filename))
+
+    return file_list
+
+
+def get_files_recursive(data_dir, filetype):
+
+    ret_list = get_files(data_dir, filetype)
+
+    subdirectories = list(p for p in os.listdir(data_dir) if
+                          os.path.isdir(os.path.join(data_dir, p)))
+
+    for sub_dir in subdirectories:
+        ret_list += get_files_recursive(os.path.join(data_dir,
+                                                     sub_dir), filetype)
+
+    return ret_list
 
 
 def last(arr, low, high, x, n):
@@ -121,108 +196,47 @@ def search_1d(arr, indices, vals, n, _len):
     return ret
 
 
-def single_stream(dir_in, dir_out, filters):
-
-
-    pass
-
-
-
-
-def check_matched_indices(pos, check, used_tags):
+def check_matched_indices(tags, check, possible_tags):
     """
-    Determine the type of a match of part-of-speech indices where the types are defined by the used_tags array
+    Determine the type of a match of part-of-speech indices where the types are defined by the possible_tags array
 
     Args:
         pos (np.ndarray): Matrix containing the part-of-speech values to search through
         check (np.ndarray): Array determining which indices per row (sentence) of pos to search through
-        used_tags (arr): List of tuples containing the possible classes
+        possible_tags (arr): List of tuples containing the possible classes
 
     Returns:
         (tuple): A tuple containing the following arrays
-            matches (arr): An array of np.ndarrays masking where the matched phrases align with the each tag of used_tags
-            counts (arr); An array containing the number of matched phrases that align with each of used_tags
+            matches (arr): An array of np.ndarrays masking where the matched phrases align with the each tag of possible_tags
+            counts (arr); An array containing the number of matched phrases that align with each of possible_tags
     """
     matches = []
     counts = []
 
     # Array of part-of-speech tags for each matched token
     x = []
-    n = pos.shape[0]
+    n = possible_tags.shape[1]
 
     # Iterate over each part-of-speech tags
     for i in range(n):
 
-        templates = pos[i]
+        templates = tags[:, :, i]
         templates = list(templates[j][check[j]] for j in range(len(check)))
         x.append(templates)
 
     x = np.array(x).T
 
-    for i in range(len(used_tags)):
+    for i in range(len(possible_tags)):
 
-        e = np.all(x == used_tags[i], axis=1)
+        e = np.all(x == possible_tags[i], axis=1)
         count = np.sum(e)
-
         matches.append(e)
         counts.append(count)
 
     return matches, counts
 
 
-def get_files(data_dir, filetype, n_files=-1):
-    """
-    Obtain a list of files within a directory of a certain filetype
-
-    Args:
-        data_dir (str): Directory to search for corpus files
-        filetype (str): File suffix
-        n_files (int): Max number of files to obtain
-
-    Returns:
-        (arr): List of paths to files satisfying requirements
-    """
-    # List of compliant files
-    file_list = list()
-
-    data_files = os.listdir(data_dir)
-
-    if n_files == -1:
-
-        n_files = len(data_files)
-
-    else:
-
-        n_files = min(len(data_files), n_files)
-
-    perm = np.random.permutation(len(data_files))[:n_files]
-
-    for i in range(n_files):
-
-        filename = data_files[perm[i]]
-
-        if filename.endswith(filetype):
-
-            file_list.append(os.path.join(data_dir, filename))
-
-    return file_list
-
-
-def get_files_recursive(data_dir, filetype):
-
-    ret_list = get_files(data_dir, filetype)
-
-    subdirectories = list(p for p in os.listdir(data_dir) if
-                          os.path.isdir(os.path.join(data_dir, p)))
-
-    for sub_dir in subdirectories:
-        ret_list += get_files_recursive(os.path.join(data_dir,
-                                                     sub_dir), filetype)
-
-    return ret_list
-
-
-def mkdir_p(path, file=False, verbose=False):
+def mkdir_p(path: str, file: bool=False, verbose: bool=False):
     """
     Function to recursively generate directories
 
@@ -261,7 +275,7 @@ def iter_batch(iterable, size=1):
         yield chain([next(batch_iter)], batch_iter)
 
 
-def clear_():
+def clear():
     """
     Function to clear the console
     """

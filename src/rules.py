@@ -1,95 +1,144 @@
-from . import configx
-from . import languages
+# -*- coding: utf-8 -*-
+
+# Filename: rules.py
+# Date Created: 24/12/2019
+# Description: Rule and RuleList classes
+# Python Version: 3.7
 
 import ast
 import csv
 import numpy as np
 
+from . import config
+from . import languages
 
-def _get_rule_info(rule_text, pos_taggers):
+cfg = config.parse()
 
-    n_pos = len(pos_taggers)
-    rule_dict = dict()
-
-    # Paired sentence data
-    corrected_sentence = rule_text[0]
-    error_sentence = rule_text[1]
-
-    rule_string = "%s --> %s" % \
-        (corrected_sentence, error_sentence)
-
-    # Retrieve unencoded part-of-speech tags of the correct sentence
-    pos_tags = rule_text[2]
-    pos_tags = pos_tags.split(',')
-
-    # Convert part-of-speech tags to index form
-    n_tokens = int(len(pos_tags) / n_pos)
-    pos_tags = np.array(list(languages.parse_node_matrix(
-        pos_tags[i * n_pos: i * n_pos + n_pos], pos_taggers) for
-        i in range(n_tokens)))
-
-    # Array of arrays denoting hows part-of-speech tags have been selected
-    # This is marked as -1 = null, 0 = no match, 1 = match
-    selections = rule_text[3]
-    selections = np.array(list(int(j) for j in selections.split(',')))
-    selections = selections.reshape(-1, n_pos)
-
-    # Arrays of tuples denoting token mappings between errored and correct
-    #   sentence
-    created = rule_text[4]
-    altered = rule_text[5]
-    preserved = rule_text[6]
-
-    # Convert string representations to lists
-    created = ast.literal_eval(created)
-    altered = ast.literal_eval(altered)
-    preserved = ast.literal_eval(preserved)
-
-    # Aggregate mapping into single tuple
-    mapping = (created, altered, preserved)
-
-    rule_dict['correct'] = corrected_sentence
-    rule_dict['error'] = error_sentence
-    rule_dict['pos'] = pos_tags
-
-    rule_dict['str'] = rule_string
-
-    rule_dict['selections'] = selections
-    rule_dict['mapping'] = mapping
-    rule_dict['n_tokens'] = n_tokens
-
-    return rule_dict
+R_PARAMS = cfg['rule_params']
 
 
-def parse_rule_file(rule_file, pos_taggers, rule_index=-1, ignore_first=True):
+class Rule:
 
-    rules = list()
+    class TemplateMapping:
 
-    line_count = -1
-    rule_count = 0
+        def __init__(self, rule_text: list, header_text: list):
 
-    # Process rule file
-    with open(rule_file, 'r') as f:
+            # Arrays of tuples denoting token mappings between errored
+            #   and correct sentence
+            inserted = rule_text[
+                header_text.index(R_PARAMS['mapping_inserted'])]
+            modified = rule_text[
+                header_text.index(R_PARAMS['mapping_modified'])]
+            preserved = rule_text[
+                header_text.index(R_PARAMS['mapping_preserved'])]
+
+            # Convert string representations to lists
+            self.inserted = ast.literal_eval(inserted)
+            self.modified = ast.literal_eval(modified)
+            self.preserved = ast.literal_eval(preserved)
+
+        def get_output_length(self):
+
+            return len(self.inserted) + len(self.modified) + \
+                len(self.preserved)
+
+    def __init__(self, rule_text: list, header_text: list,
+                 tag_languages: list):
+
+        self.n_tags = len(tag_languages)
+
+        self.number = int(rule_text[header_text.index(R_PARAMS['number'])])
+
+        # Template phrases
+        self.template_correct = rule_text[
+            header_text.index(R_PARAMS['template_correct_phrase'])]
+        self.template_error = rule_text[
+            header_text.index(R_PARAMS['template_error_phrase'])]
+
+        self.rule_string = '%s --> %s' % \
+            (self.template_error, self.template_correct)
+
+        # Retrieve unencoded part-of-speech tags of the template correct phrase
+
+        syntactic_tags = rule_text[
+            header_text.index(R_PARAMS['syntactic_tags'])]
+        syntactic_tags = syntactic_tags.split(',')
+
+        # Convert part-of-speech tags to index form
+        self.n_correct_tokens = int(len(syntactic_tags) / self.n_tags)
+        self.syntactic_tags = np.array(list(languages.parse_node_matrix(
+            syntactic_tags[i * self.n_tags: i * self.n_tags + self.n_tags],
+            tag_languages) for i in range(self.n_correct_tokens)))
+
+        # Array of arrays denoting hows part-of-speech tags have been selected
+        # This is marked as -1 = null, 0 = no match, 1 = match
+        tag_mask = rule_text[header_text.index(R_PARAMS['syntactic_tag_mask'])]
+        tag_mask = np.array(list(int(j) for j in tag_mask.split(',')))
+        self.tag_mask = tag_mask.reshape(-1, self.n_tags)
+
+        self.mapping = self.TemplateMapping(rule_text, header_text)
+        self.n_error_tokens = self.mapping.get_output_length()
+
+    def __str__(self):
+
+        return self.rule_string
+
+    def get_mapping(self):
+
+        return self.mapping.inserted, self.mapping.modified, \
+            self.mapping.preserved
+
+
+class RuleList:
+
+    def __init__(self, rule_file: str, tag_languages: list,
+                 ignore_first: bool=True):
+
+        self.rule_dict = dict()
+
+        line_count = 0
+        rule_count = 0
+
+        f = open(rule_file, 'r')
 
         csv_reader = csv.reader(f, delimiter=',')
+
+        header = next(csv_reader)
+
         # Read each line (rule) of CSV
-        for rule_text in csv_reader:
+        for line in csv_reader:
 
             line_count += 1
 
+            # Ignore first line
             if line_count == 0 and ignore_first:
 
                 continue
 
-            elif len(rule_text) > 2 and rule_text[0] != '#':
+            # Ignore comments
+            elif len(line) > 2 and line[0] != '#':
 
                 rule_count += 1
+                rule = Rule(line, header, tag_languages)
 
-                if rule_count == rule_index or rule_index == -1:
+                self.rule_dict[rule.number] = rule
 
-                    rule_dict = _get_rule_info(rule_text, pos_taggers)
-                    rules.append(rule_dict)
+    def print_rule(self, number):
 
-    f.close()
+        assert(number in self.rule_dict.keys())
 
-    return rules
+        print('Rule %d: %s' % (number, str(self.rule_dict[number])))
+
+    def iterate_rules(self, rule_index):
+
+        if rule_index == -1:
+
+            indices = sorted(i for i in self.rule_dict.keys())
+
+        else:
+
+            indices = [rule_index]
+
+        for i in indices:
+
+            yield self.rule_dict[i], i
