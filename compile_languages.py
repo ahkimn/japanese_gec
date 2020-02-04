@@ -34,12 +34,6 @@ if __name__ == '__main__':
     #    Parameters for constructed Language instances
     # ====================================================
 
-    # Required
-    parser.add_argument(
-        '--language_dir', metavar='LANGUAGE_DIR', type=str,
-        help='sub-directory of ./data/languages where \
-        Language dictionaries are saved', required=True)
-
     parser.add_argument(
         '--lang_token_prefix', metavar='LANG_TOKEN_PREFIX',
         default=L_PARAMS['token_prefix'], type=str,

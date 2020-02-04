@@ -10,7 +10,7 @@ import os
 
 HOME_DIR = os.path.expanduser("~")
 PROJECT_DIR = os.path.join(
-    HOME_DIR, 'Projects/rewrite')
+    HOME_DIR, 'Projects/japanese_gec')
 CONFIG_FILE = os.path.join(PROJECT_DIR, 'config.yml')
 
 
