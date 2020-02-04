@@ -1,135 +1,117 @@
+# -*- coding: utf-8 -*-
+
 # Filename: generate.py
-# Author: Alex Kimn
-# E-mail: alex.kimn@outlook.com
-# Date Created: 23/06/2018
-# Date Last Modified: 04/03/2019
+# Date Created: 23/08/2018
+# Description: Functions to generate parallel synthetic data
 # Python Version: 3.7
 
-'''
-Functions to generate new errored sentences from template sentences
-'''
+import csv
+import os
 
 import numpy as np
 
-from termcolor import colored
-
-from . import configx
+from . import config
 from . import languages
-from . import replace
+from . import morph
+from . import parse
+from . import util
+
+from .match import TemplateMatch
+from .rules import Rule
+from .sorted_tag_database import SortedTagDatabase
+
+from termcolor import colored
+from numpy.random import RandomState
+
+cfg = config.parse()
+
+D_PARAMS = cfg['data_params']
 
 
-def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers,
-                             rule_data, verbose=True, n_sample=30):
+def generate_synthetic_pairs(
+        stdb: SortedTagDatabase, token_language: languages.Language,
+        tag_languages: list, rule: Rule, matches: TemplateMatch,
+        n_sample: int=30, verbose: bool=True):
     """
-    Function to generate errored sentences from template sentences using a given mapping on the 
-        correct -> errored rule designated by corrected and errored inputs
-
-    Args:
-        unique_arrays (arr): Arrays containing information on unique tokens within the corpus and their 
-                              corresponding part-of-speech information
-        token_tagger (Language): Language class instance used to tag tokens
-        pos_taggers (arr): List of Language class instances used to tag each part-of-speech index
-        mapping (TYPE): List of three arrays determining which tokens from the template sentence
-        selections (arr): Array determining which part-of-speech indices need to be matched
-        matched_sentences (TYPE): Template sentences to generate from, grouped by sub-rule
-        start_indices (TYPE): Start indices of template phrases within each template sentence
-        errored (str): Errored phrase of rule
-        corrected (str): Corrected phrase of rule
-        verbose (bool, optional): Determines whether debugging string output is printed to terminal or not
-        max_per_colored (int, optional): Determines maximum number of colored output sentences per subrule outputted
-
-    Returns:
-        ret (arr): A list of list of pairs of sentences (template, generated), grouped by sub-rule
+    Function to generate errored sentences from matched sentences using the
+        mapping and template phrases of a given rule
     """
-    # Separate individual matrices for use
-
-    form_pos = unique_matrices['form_dict']
-
-    tokens = matched['tokens']
-    sentences = matched['sentences']
-    forms = matched['forms']
-    pos = np.moveaxis(matched['pos'], 0, -1)
-    starts = matched['starts']
-    subrule_indices = matched['subrule_indices']
-
-    n_pos = pos.shape[2]
-    n_matches = len(forms)
-
-    correct_phrase = rule_data['correct']
-    error_phrase = rule_data['error']
 
     # Return array containing newly generated sentence pairs
-    ret = list()
-    # Return coloured variant of generated pairs
-    valid_rule_starts = list()
+    gen_sentences = list()
+    # Return array containing start index of error in each sentence
+    gen_starts = list()
 
     # Parse template phrases
-    nodes_correct, pos_correct = languages.parse_full(
-        correct_phrase, configx.CONST_PARSER, None)
-    nodes_error, pos_error = languages.parse_full(
-        error_phrase, configx.CONST_PARSER, None)
+    tokens_correct, tags_correct = parse.parse_full(
+        rule.template_correct, parse.default_parser(), None)
+    tokens_error, tags_error = parse.parse_full(
+        rule.template_error, parse.default_parser(), None)
 
     # Obtain 2D part-of-speech matrix for errored phrase
     # Of form (n, k), where n is the length of the phrase,
     #   and k is the number of part-of-speech tags per token
-    pos_correct = np.array(list(
-        languages.parse_node_matrix(pos_token, pos_taggers)
-        for pos_token in np.array(pos_correct).T))
+    tags_correct = np.array(list(
+        languages.parse_node_matrix(pos_token, tag_languages)
+        for pos_token in np.array(tags_correct).T))
 
-    pos_error = np.array(list(
-        languages.parse_node_matrix(pos_token, pos_taggers)
-        for pos_token in np.array(pos_error).T))
+    tags_error = np.array(list(
+        languages.parse_node_matrix(pos_token, tag_languages)
+        for pos_token in np.array(tags_error).T))
 
-    indices_error = token_tagger.parse_sentence(nodes_error)
-
-    mapping = rule_data['mapping']
-    selections = rule_data['selections']
-
-    created, altered, preserved = mapping
-    n_correct = len(selections)
-    n_error = len(created) + len(altered) + len(preserved)
+    indices_error = token_language.parse_nodes(tokens_error)
 
     if verbose:
-        print("\n\tCorrect: " + ' | '.join(nodes_correct))
-        print("\tError: " + ' | '.join(nodes_error) + '\n')
+        print("\n\tCorrect: " + ' | '.join(tokens_correct))
+        print("\tError: " + ' | '.join(tokens_error) + '\n')
 
-    template_correct = np.zeros((n_matches, n_correct, n_pos + 1),
-                                dtype=forms.dtype)
-    template_error = np.zeros((n_matches, n_error, n_pos + 1),
-                              dtype=forms.dtype)
-    template_correct_token = np.zeros((n_matches, n_correct),
-                                      dtype=forms.dtype)
-    template_error_token = np.zeros((n_matches, n_error),
-                                    dtype=forms.dtype)
-    bin_selections = selections > 0
+    n_sentences = matches.n_sentences
 
-    for i in range(n_matches):
+    template_correct = np.zeros((n_sentences, rule.n_correct_tokens,
+                                 matches.tags.shape[2]),
+                                dtype=matches.tags.dtype)
+    template_error = np.zeros((n_sentences, rule.n_error_tokens,
+                               matches.tags.shape[2]),
+                              dtype=matches.tags.dtype)
+    template_correct_token = np.zeros((n_sentences, rule.n_correct_tokens),
+                                      dtype=matches.tags.dtype)
+    template_error_token = np.zeros((n_sentences, rule.n_error_tokens),
+                                    dtype=matches.tags.dtype)
 
-        s = starts[i]
-        template_correct[i, :, :-1] = pos[i, s:s + n_correct]
-        template_correct[i, :, -1] = forms[i, s:s + n_correct]
-        template_correct_token[i, :] = sentences[i, s:s + n_correct]
+    bin_mask = rule.tag_mask > 0
+
+    for i in range(n_sentences):
+
+        s = matches.starts[i]
+        template_correct[i, :, :] = \
+            matches.tags[i, s:s + rule.n_correct_tokens]
+        template_correct_token[i, :] = \
+            matches.tokens[i, s:s + rule.n_correct_tokens]
+
+    inserted, modified, preserved = rule.get_mapping()
 
     for i in range(len(preserved)):
 
         m = preserved[i]
         template_error_token[:, m[0]] = template_correct_token[:, m[1]]
 
-    for i in range(len(created)):
+    for i in range(len(inserted)):
 
-        m = created[i]
+        m = inserted[i]
         template_error_token[:, m] = indices_error[m]
 
-    valid_indices = list(range(n_matches))
+    form_token = stdb.get_form_to_token()
+
+    valid_indices = list(range(n_sentences))
     morph_print = 0
 
-    for i in range(len(altered)):
+    for i in range(len(modified)):
 
-        m = altered[i]
+        m = modified[i]
         template_error[:, m[0], :] = template_correct[:, m[1], :]
 
-        epos = pos_error[m[0]]
-        cpos = pos_correct[m[1]]
+        epos = tags_error[m[0]]
+        cpos = tags_correct[m[1]]
 
         not_ = (epos == cpos)
 
@@ -139,31 +121,31 @@ def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers
 
                 continue
 
-            if bin_selections[m[1], i]:
+            if bin_mask[m[1], i]:
 
                 template_error[:, m[0], i] = epos[i]
 
-        match_sel = np.argwhere(bin_selections[m[1], :-1]).reshape(-1)
+        match_sel = np.argwhere(bin_mask[m[1], :-1]).reshape(-1)
 
-        alterer = replace.Morpher((nodes_correct[m[1]], nodes_error[m[0]]))
+        morpher = morph.Morpher((tokens_correct[m[1]], tokens_error[m[0]]))
 
-        print('\tAlteration of token: %s' % alterer.get_rule())
+        print('\tAlteration of token: %s' % morpher.get_rule())
 
         n_print = n_sample
-        print_perm = np.random.permutation(n_matches)[:n_print].tolist()
+        print_perm = np.random.permutation(n_sentences)[:n_print].tolist()
 
-        for j in range(n_matches):
+        for j in range(n_sentences):
 
             printed = False
 
             valid_tokens = set()
             final_index = -1
             final_token = ''
-            base_token = token_tagger.parse_index(
+            base_token = token_language.parse_index(
                 template_correct_token[j, m[1]])
 
             base_form = template_correct[j, m[1], -1]
-            form_info = form_pos.get(base_form, None)
+            form_info = form_token.get(base_form, None)
 
             if form_info is not None:
 
@@ -187,31 +169,32 @@ def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers
 
                     # Take most frequent substitution
                     t = min(valid_tokens)
-                    final_token = token_tagger.parse_index(t)
+                    final_token = token_language.parse_index(t)
 
                     final_index = t
 
-                    if (alterer.is_deletion() and alterer.can_morph()) and \
-                        (len(base_token) - len(final_token)
-                            != alterer.del_length()):
+                    if (morpher.is_deletion() and morpher.can_morph()) and \
+                            (len(base_token) - len(final_token) !=
+                                morpher.del_length()):
 
                         final_index = -1
 
             if final_index == -1:
 
-                if alterer.is_deletion() and alterer.can_morph():
+                if morpher.is_deletion() and morpher.can_morph():
 
-                    final_token = alterer.morph(base_token)
-                    final_index = token_tagger.add_node(final_token)
+                    final_token = morpher.morph(base_token)
+                    final_index = token_language.add_node(final_token)
 
-                elif (alterer.is_substitution() or alterer.is_addition()) \
-                        and alterer.can_morph():
+                elif (morpher.is_substitution() or morpher.is_addition()) \
+                        and morpher.can_morph():
 
-                    # sub_token = alterer.morph(base_token)
+                    # sub_token = morpher.morph(base_token)
                     sub_token = \
-                        alterer.morph_pos(base_token, base_form, token_tagger,
-                                          pos_taggers, configx.CONST_PARSER,
-                                          template_error[j, m[0]], match_sel)
+                        morpher.morph_pos(
+                            base_token, base_form, token_language,
+                            tag_languages, parse.default_parser(),
+                            template_error[j, m[0]], match_sel)
 
                     if sub_token is not None:
 
@@ -225,13 +208,15 @@ def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers
                             morph_print += 1
                             printed = True
 
-                        final_index = token_tagger.add_node(final_token)
+                        final_index = token_language.add_node(final_token)
 
+                # If generation fails, sentence is no longer valid
                 if final_index == -1:
 
                     if j in valid_indices:
 
                         valid_indices.remove(j)
+
                     continue
 
             assert(final_index != -1)
@@ -247,31 +232,26 @@ def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers
     print_perm = np.random.permutation(n_valid)[:n_sample]
 
     print('\n\tTokens succesfully generated for %d / %d sentences' %
-          (n_valid, n_matches))
-    print(configx.BREAK_SUBLINE)
+          (n_valid, n_sentences))
+    print(cfg['BREAK_SUBLINE'])
 
     valid_indices = set(valid_indices)
+    not_seen = valid_indices.copy()
     n_generated = 0
 
-    not_seen = set(list(valid_indices))
-
     # Iterate over each sub-rule
-    for i in range(len(subrule_indices) + 1):
+    for i in range(matches.n_subrules):
 
         if verbose:
 
             print("\n\t\tSub-rule %d of %d..." %
-                  (i + 1, len(subrule_indices)))
-            print(configx.BREAK_HALFLINE)
+                  (i + 1, matches.n_subrules))
+            print(cfg['BREAK_HALFLINE'])
 
-        if i == len(subrule_indices):
-            sub_indices = list(not_seen)
-            print(len(not_seen))
+        sub_indices = matches.subrule_indices[i]
 
-        else:
-            sub_indices = subrule_indices[i]
-        ret_sub_rule = []
-        sub_rule_starts = list()
+        subrule_sentences = list()
+        subrule_starts = list()
 
         printed_in_rule = 0
 
@@ -288,60 +268,147 @@ def create_errored_sentences(unique_matrices, matched, token_tagger, pos_taggers
 
                     continue
 
-                s = starts[idx]
+                s = matches.starts[idx]
 
                 not_seen.remove(idx)
 
-                original_phrase = token_tagger.sentence_from_indices(
-                    template_correct_token[idx])
-                generated_phrase = list(token_tagger.parse_index(k)
+                original_phrase = token_language.parse_indices(
+                    template_correct_token[idx], delimiter='')
+
+                generated_phrase = list(token_language.parse_index(k)
                                         for k in template_error_token[idx])
-                template_sentence = tokens[idx].split(',')
+
+                template_sentence = \
+                    token_language.parse_indices(
+                        matches.tokens[idx]).split(',')
 
                 # Don't want error phrase equal to correct
                 if original_phrase == ''.join(generated_phrase):
                     raise ValueError
 
-                if verbose and (idx in print_perm
-                                or (j == len(sub_indices) - 1
-                                    and printed_in_rule == 0)):
+                if verbose and (idx in print_perm or
+                                (j == len(sub_indices) - 1 and
+                                 printed_in_rule == 0)):
 
                     print("\t\tSentence %d: %s -> %s" %
                           (idx, original_phrase, ''.join(generated_phrase)))
 
                     printed_in_rule += 1
 
-                t_s = 0
+                t_start, t_stop = 0, matches.subrule_lengths[i][j]
 
-                if template_sentence[0] == token_tagger.start_token:
+                if template_sentence[0] == token_language.start_token:
 
-                    t_s = 1
+                    t_start = 1
 
-                # Finish constructing generated sentence by placing generated phrase
-                #   within non-altered portions of tempalte sentence
-                generated_sentence = template_sentence[t_s:s] + generated_phrase + \
-                    template_sentence[s + n_correct:]
+                if template_sentence[t_stop] != token_language.stop_token:
 
-                sub_rule_starts.append(s - t_s)
-                ret_sub_rule.append(
-                    (''.join(generated_sentence).strip(), ''.join(template_sentence[t_s:]).strip()))
+                    t_stop += 1
+
+                # Finish constructing generated sentence by placing
+                #   generated phrase within non-modified portions of
+                #   template sentence
+                generated_sentence = template_sentence[t_start:s] + \
+                    generated_phrase + \
+                    template_sentence[s + rule.n_correct_tokens:t_stop]
+
+                s = s - t_start
+
+                subrule_starts.append([s, s + rule.n_error_tokens,
+                                       s, s + rule.n_correct_tokens])
+                subrule_sentences.append(
+                    (generated_sentence, template_sentence[t_start:t_stop]))
 
                 n_generated += 1
 
-            except:
+            except Exception:
 
-                raise
-
-                # print('WARNING: Original and error phrase are identical')
-                print('%s == %s' % (original_phrase, ''.join(generated_phrase)))
+                print('\t\tWARNING: Original and error phrase are identical')
+                print('\t\t%s == %s' % (original_phrase,
+                                        ''.join(generated_phrase)))
 
                 continue
 
-        ret.append(ret_sub_rule)
-        valid_rule_starts.append(sub_rule_starts)
+        gen_sentences.append(subrule_sentences)
+        gen_starts.append(subrule_starts)
+
+    if len(not_seen) > 0:
+
+        print('\n\tWARNING: %d sentences not classified into sub-rule'
+              % len(not_seen))
 
     print('\n\tErrors succesfully generated for %d / %d sentences' %
-          (n_generated, n_matches))
-    print(configx.BREAK_SUBLINE)
+          (n_generated, n_sentences))
+    print(cfg['BREAK_SUBLINE'])
 
-    return ret, valid_rule_starts
+    return gen_sentences, gen_starts
+
+
+def sample_data(rule: Rule, paired_sentences: list, paired_starts: int, 
+                n_per_subrule: int=1, RS: RandomState=None):
+
+    n_subrules = len(paired_sentences)
+
+    for i in range(n_subrules):
+
+        print('\n\tSample sentences for sub-rule %d of %d\n'
+              % (i + 1, n_subrules))
+
+        subrule_sentences = paired_sentences[i]
+        n_subrule = len(subrule_sentences)
+        perm = np.arange(n_subrule) if RS is None \
+            else RS.permutation(n_subrule)
+
+        for j in perm[:n_per_subrule]:
+
+            pair = subrule_sentences[j]
+            starts = paired_starts[i][j]
+
+            highlighted_error = ''.join(pair[0][:starts[0]]) \
+                + colored(''.join(pair[0][starts[0]:starts[1]]), 'red') \
+                + ''.join(pair[0][starts[1]:])
+
+            highlighted_correct = ''.join(pair[1][:starts[2]]) \
+                + colored(''.join(pair[1][starts[2]:starts[3]]) , 'green') \
+                + ''.join(pair[1][starts[3]:])
+
+            print('\tE: %s\n\tC: %s' % (highlighted_error, highlighted_correct))
+
+
+def save_synthetic_sentences(paired_sentences: list, paired_starts: list,
+                             save_dir: str, unknown=None):
+
+    if not os.path.isdir(save_dir):
+        util.mkdir_p(save_dir)
+
+    print("\t\tSave directory: %s" % save_dir)
+
+    # Iterate over each subrule
+    for i in range(len(paired_sentences)):
+
+        f_name = '%s%d%s' % (D_PARAMS['synthesized_data_prefix'], i,
+                             D_PARAMS['paired_data_filetype'])
+
+        with open(os.path.join(save_dir, f_name), "w+") as f:
+
+            csv_writer = csv.writer(f, delimiter=',')
+
+            n_subrule = len(paired_sentences[i])
+
+            for j in range(n_subrule):
+
+                error_sentence = paired_sentences[i][j][0]
+                correct_sentence = paired_sentences[i][j][1]
+
+                if unknown is not None and (unknown in error_sentence or
+                                            unknown in correct_sentence):
+
+                    print('WARNING: Pair %s -> %s contains unknown tokens'
+                          % (error_sentence, correct_sentence))
+
+                    continue
+
+                csv_writer.writerow(
+                    [' '.join(error_sentence), ' '.join(correct_sentence)] + paired_starts[i][j])
+
+        f.close()

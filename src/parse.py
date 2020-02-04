@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+
+# Filename: parse.py
+# Date Created: 21/12/2019
+# Description: Wrapper functions around MeCab's Tagger instances
+# Python Version: 3.7
+
+
 import MeCab
 
 from . import config
@@ -8,7 +16,18 @@ P_PARAMS = cfg['parser_params']
 
 def default_parser():
 
-    return MeCab.Tagger()
+    dict_dir = P_PARAMS['dictionary_dir']
+
+    if dict_dir != '':
+
+        parser = MeCab.Tagger('-d %s' % dict_dir)
+
+    else:
+
+        parser = MeCab.Tagger()
+    parser.parse('')
+
+    return parser
 
 
 def resolve_syntactic_tags(tags: list):

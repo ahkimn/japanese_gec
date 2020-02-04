@@ -13,7 +13,11 @@ DIRECTORIES = cfg['directories']
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Language Test')
+    parser = argparse.ArgumentParser(description='Compile Languages')
+
+    # ====================================================
+    #    Parameters for constructed source corpus
+    # ====================================================
 
     parser.add_argument(
         '--corpus_dir', metavar='CORPUS_DIR', default='scrape',
@@ -21,15 +25,37 @@ if __name__ == '__main__':
             containing source corpus files', required=False)
 
     parser.add_argument(
-        '--save_dir', metavar='SAVE_DIR', default='tmp',
-        type=str, help='sub-directory of ./data/languages \
-            to save Language instance dictionaries', required=False)
-
-    parser.add_argument(
         '--filetype', metavar='FILE_TYPE',
         default=D_PARAMS['source_corpus_filetype'],
         type=str, help='filetype of source corpus files',
         required=False)
+
+    # ====================================================
+    #    Parameters for constructed Language instances
+    # ====================================================
+
+    # Required
+    parser.add_argument(
+        '--language_dir', metavar='LANGUAGE_DIR', type=str,
+        help='sub-directory of ./data/languages where \
+        Language dictionaries are saved', required=True)
+
+    parser.add_argument(
+        '--lang_token_prefix', metavar='LANG_TOKEN_PREFIX',
+        default=L_PARAMS['token_prefix'], type=str,
+        help='Filename prefix of saved Language instance containing \
+            token information', required=False)
+
+    parser.add_argument(
+        '--lang_syntactic_tag_prefix', metavar='LANG_SYNTACTIC_TAG_PREFIX',
+        default=L_PARAMS['syntactic_tag_prefix'], type=str,
+        help='Filename prefix of Language instances containing \
+            syntactic tag information', required=False)
+
+    parser.add_argument(
+        '--save_dir', metavar='SAVE_DIR', default='tmp',
+        type=str, help='sub-directory of ./data/languages \
+            to save Language instance dictionaries', required=False)
 
     parser.add_argument(
         '--token_prefix', metavar='TOKEN_PREFIX',

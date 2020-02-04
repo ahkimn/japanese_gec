@@ -1,14 +1,9 @@
-# Filename: languages.py
-# Author: Alex Kimn
-# E-mail: alex.kimn@outlook.com
-# Date Created: 11/06/2018
-# Date Last Modified: 26/02/2019
-# Python Version: 3.7
+# -*- coding: utf-8 -*-
 
-'''
-Language class and related functions - for converting string representations of tokens/part-of-speech tags
-to integer values (and vice-versa)
-'''
+# Filename: languages.py
+# Date Created: 15/08/2018
+# Description: Language class and associated functions
+# Python Version: 3.7
 
 import os
 import time
@@ -16,124 +11,177 @@ import pickle
 
 import numpy as np
 
-from . import configx
+from . import config
+from . import parse
 from . import util
+
+cfg = config.parse()
+
+D_PARAMS = cfg['data_params']
+L_PARAMS = cfg['language_params']
+P_PARAMS = cfg['parser_params']
+DIRECTORIES = cfg['directories']
 
 
 class Language:
     """
-    Class used to determine mapping between unique nodes (tokens or parts-of-speech) and integers
+    Class used to convert between string and integer representations of
+        text
 
     Attributes:
         count (int): Total number of nodes processed
-        index_node (dict): Dictionary mapping integers (indices) to strings (nodes)
-        n_nodes (int): Number of unique nodes recognized by the Language instance
-        n_preserve (int): Number of default nodes (i.e. pad) to retain before adding actual nodes
-        node_count (dict): Dictionary mapping strings (nodes) to their recorded frequency
-        node_index (dict): Dictionary mapping strings (nodes) to integers (indices)
+        index_node (dict): Dictionary mapping integers (indices)
+            to strings (nodes)
+        n_nodes (int): Number of unique nodes recognized in instance
+        n_preserve (int): Number of default nodes (i.e. pad, unknown)
+            to retain at front of indices
+        node_count (dict): Dictionary mapping strings (nodes) to frequency
+        node_index (dict): Dictionary mapping strings (nodes) to integers
+            (indices)
         pad_index (int): Integer value representation of padding (default = 0)
         pad_token (str): String representation of padding (default = 'PAD')
-        start_index (int): Integer value representation of the start token (default = 2)
-        start_token (str): String representation of the start token (default = 'START')
-        stop_index (int): Integer value representation of the stop token (default = 3)
-        stop_token (str): String representation of the stop token (default = '。')
-        unknown_index (int): Integer value representation of unknown tokens (default = 1)
-        unknown_token (str): String representation of unknown tokens (default = 'UNKNOWN')
-        use_delimiter (bool, optional): Determines whether or not Language nodes are tokens  (which utilize '。' as sentence delimiters)
-                                  or part-of-speech tags (which do not)
+        start_index (int): Integer value representation of the start token
+            (default = 2)
+        start_token (str): String representation of the start token
+            (default = 'START')
+        stop_index (int): Integer value representation of the stop token
+            (default = 3)
+        stop_token (str): String representation of the stop token
+            (default = '。')
+        unknown_index (int): Integer value representation of unknown tokens
+            (default = 1)
+        unknown_token (str): String representation of unknown tokens
+            (default = 'UNKNOWN')
     """
 
-    def __init__(self, use_delimiter=False):
+    def __init__(self, pad_token: str=None, unknown_token: str=None,
+                 start_token: str=None, stop_token: str=None):
         """
-        Constructor
+        Constructor for Language class
 
         Args:
-            use_delimiter (bool, optional): Determines whether or not Language nodes are tokens  (which utilize '。' as sentence delimiters)
-                                                or part-of-speech tags (which do not)
+            pad_token (str, optional): Description
+            unknown_token (str, optional): Description
+            start_token (str, optional): Description
+            stop_token (str, optional): Description
         """
-        self.use_delimiter = use_delimiter
+        self.pad_token = L_PARAMS['pad_token'] if pad_token is None \
+            else pad_token
+        self.pad_index = L_PARAMS['pad_index']
 
-        self.pad_token = configx.CONST_PAD_TOKEN
-        self.pad_index = configx.CONST_PAD_INDEX
+        self.unknown_token = L_PARAMS['unknown_token'] \
+            if unknown_token is None else unknown_token
+        self.unknown_index = L_PARAMS['unknown_index']
 
-        self.unknown_token = configx.CONST_UNKNOWN_TOKEN
-        self.unknown_index = configx.CONST_UNKNOWN_INDEX
+        # Use default values of start and stop tokens
+        self.start_token = L_PARAMS['start_token'] \
+            if start_token is None else start_token
+        self.start_index = L_PARAMS['start_index']
 
-        # If nodes represent tokens
-        if self.use_delimiter:
+        self.stop_token = L_PARAMS['stop_token'] \
+            if stop_token is None else stop_token
+        self.stop_index = L_PARAMS['stop_index']
 
-            # Use default values of start and stop tokens
-            self.start_token = configx.CONST_SENTENCE_START_TOKEN
-            self.start_index = configx.CONST_SENTENCE_START_INDEX
+        # Initialize dictionary mappings with default tokens
+        self.node_index = {self.pad_token: self.pad_index,
+                           self.unknown_token: self.unknown_index,
+                           self.start_token: self.start_index,
+                           self.stop_token: self.stop_index}
 
-            self.stop_token = configx.CONST_SENTENCE_DELIMITER_TOKEN
-            self.stop_index = configx.CONST_SENTENCE_DELIMITER_INDEX
+        self.node_count = {self.pad_token: 0,
+                           self.unknown_token: 0,
+                           self.start_token: 0,
+                           self.stop_token: 0}
 
-            # Initialize dictionary mappings with default tokens
-            self.node_index = {self.pad_token: self.pad_index,
-                               self.unknown_token: self.unknown_index,
-                               self.start_token: self.start_index,
-                               self.stop_token: self.stop_index}
-
-            self.node_count = {self.pad_token: 0,
-                               self.unknown_token: 0,
-                               self.start_token: 0,
-                               self.stop_token: 0}
-
-            self.index_node = {self.pad_index: self.pad_token,
-                               self.unknown_index: self.unknown_token,
-                               self.start_index: self.start_token,
-                               self.stop_index: self.stop_token}
-
-        # Otherwise, if nodes are part-of-speech tags
-        else:
-
-            # Initialize dictionary mappings with asterisk to represent unused (padded) nodes
-            # Start and stop indices are not included (as they are not part-of-speech tags)
-            self.node_index = {'*': self.pad_index,
-                               self.unknown_token: self.unknown_index}
-            self.node_count = {'*': 0, self.unknown_token: 0}
-            self.index_node = {self.pad_index: '*',
-                               self.unknown_index: self.unknown_token}
+        self.index_node = {self.pad_index: self.pad_token,
+                           self.unknown_index: self.unknown_token,
+                           self.start_index: self.start_token,
+                           self.stop_index: self.stop_token}
 
         self.n_preserve = len(self.index_node.keys())
         self.n_nodes = len(self.index_node.keys())
         self.count = 0
 
-    def load_dicts(self, prefix):
-        """
-        Load a Language instance from disk
+    def set_dicts(self, index_node: dict, node_count: dict,
+                  node_index: dict):
 
-        Args:
-            prefix (str): Language save prefix string
-        """
-        self.node_index = pickle.load(open("_".join((prefix, "ni.pkl")), 'rb'))
-        self.node_count = pickle.load(open("_".join((prefix, "nc.pkl")), 'rb'))
-        self.index_node = pickle.load(open("_".join((prefix, "in.pkl")), 'rb'))
+        self.index_node = index_node
+        self.node_count = node_count
+        self.node_index = node_index
 
         self.n_nodes = len(self.index_node.keys())
         self.count = sum(list(self.node_count[i]
                               for i in self.node_count.keys()))
 
-    def save_dicts(self, prefix):
+        self.sort()
+
+    @classmethod
+    def load(cls, load_path: str, load_prefix: str='', join: str='_'):
+        """
+        Load a Language instance from disk
+
+        Args:
+            load_path (str): Filepath to directory containing Language dicts
+            load_prefix (str, optional): Identifying prefixes of Language dict
+                filename
+            join (str, optional): String joining prefix and suffix of
+                Language dict filenames
+
+        Returns:
+            TYPE: Description
+        """
+
+        lg = cls()
+
+        load_index_node = os.path.join(
+            load_path, load_prefix + join + L_PARAMS['index_node'])
+        load_node_count = os.path.join(
+            load_path, load_prefix + join + L_PARAMS['node_count'])
+        load_node_index = os.path.join(
+            load_path, load_prefix + join + L_PARAMS['node_index'])
+
+        index_node = pickle.load(open(load_index_node, 'rb'))
+        node_count = pickle.load(open(load_node_count, 'rb'))
+        node_index = pickle.load(open(load_node_index, 'rb'))
+
+        lg.set_dicts(index_node, node_count, node_index)
+
+        return lg
+
+    def save(self, save_path: str, save_prefix: str='', join: str='_'):
         """
         Save a Language instance to disk
 
         Args:
-            prefix (str): Language save prefix string
+            save_path (str): Filepath to save dictionaries of Language
+                instance
+            save_prefix (str, optional): Identifying prefixe for saving
+                Language instance dicts
+            join (str, optional): String joining prefix and suffix of
+                Language dict filenames
         """
         self.sort()
 
-        pickle.dump(self.node_index, open("_".join((prefix, "ni.pkl")), 'wb'))
-        pickle.dump(self.node_count, open("_".join((prefix, "nc.pkl")), 'wb'))
-        pickle.dump(self.index_node, open("_".join((prefix, "in.pkl")), 'wb'))
+        save_index_node = os.path.join(
+            save_path, save_prefix + join + L_PARAMS['index_node'])
+        save_node_count = os.path.join(
+            save_path, save_prefix + join + L_PARAMS['node_count'])
+        save_node_index = os.path.join(
+            save_path, save_prefix + join + L_PARAMS['node_index'])
 
-    def add_sentence(self, nodes):
+        pickle.dump(self.index_node, open(save_index_node, 'wb'))
+        pickle.dump(self.node_count, open(save_node_count, 'wb'))
+        pickle.dump(self.node_index, open(save_node_index, 'wb'))
+
+    def add_nodes(self, nodes: list):
         """
-        Add a list of nodes to the dictionary
+        Add a list of nodes to self
 
         Args:
-            nodes (arr): List of nodes
+            nodes (list): List of nodes
+
+        Returns:
+            TYPE: Description
         """
         ret = list()
 
@@ -143,9 +191,9 @@ class Language:
 
         return ret
 
-    def add_node(self, node):
+    def add_node(self, node: str):
         """
-        Add a single node to the dictionary
+        Add a single node to self
 
         Args:
             node (str): Single node (token or part-of-speech)
@@ -174,180 +222,48 @@ class Language:
 
         return self.node_index[node]
 
-    def parse_indices(self, indices, n_max=-1, delimiter=','):
+    def parse_indices(self, indices: list, n_max: int=-1,
+                      delimiter: str=','):
         """
-        Parse list of integer indices into string representation, separated by a delimiter
+        Parse list of integer indices into string representation,
+            separated by a delimiter.
 
         Args:
-            indices (arr): List of integers corresponding to node indices
-            n_max (int, optional): Maximal integer value to output normally, all indices exceeding this value are outputted
-                                   as self.unknown_token (default = 'UNKNOWN')
-            delimiter (str, optional): Delimiter used to separate individual nodes in output
+            indices (list): List of integers to parse
+            n_max (int, optional): Integer threshold for unknown token.
+                All values in %indices% exceeding this value are outputted as
+                the instance's string representation for unknown tokens
+            delimiter (str, optional): Delimiter used to separate individual
+                nodes in output
 
         Returns:
-            ret (str): String composed of nodes corresponding to input indices, delimited by the delimiter parameter
+            ret (str): String composed of nodes corresponding to integers
+                in %indices%, separated by %delimiter%
         """
-        ret = ""
+        ret = ''
 
-        if n_max > 0:
+        for idx in indices:
 
-            n_max = min(n_max, self.n_nodes)
-
-        else:
-
-            n_max = self.n_nodes
-
-        for i in range(len(indices)):
-
-            index = indices[i]
-
-            if index > n_max:
-
-                ret += self.unknown_token
-
-            else:
-
-                ret += self.index_node[index]
-
+            ret += self.parse_index(idx, n_max)
             ret += delimiter
 
         return ret
 
-    def sentence_from_indices(self, indices, n_max=-1):
+    def parse_index(self, index: int, n_max: int=-1):
         """
-        Parse list of integer indices into string representation without delimiters
+        Convert integer index to corresponding string representation
 
         Args:
-            indices (arr): List of integers corresponding to node indices
-            n_max (int, optional): Maximal integer value to output normally, all indices exceeding this value are outputted
-                                   as self.unknown_token (default = 'UNKNOWN')
+            index (int): Integer to parse
+            n_max (int, optional): Integer threshold for unknown token.
+                If %index% exceeds this value, the instance's string
+                representation for unknown tokens is returned
 
         Returns:
-            ret (str): String composed of nodes corresponding to input indices, delimited by the delimiter parameter
+            ret (str): String corresponding to %index%
         """
-        return self.parse_indices(indices, n_max, delimiter="")
-
-    def parse_sentence(self, nodes, n_max=-1):
-        """
-        Convert a list of nodes into a list of indices
-
-        Args:
-            nodes (arr): List of strings (nodes)
-            n_max (int, optional): Maximal index to convert normally, all nodes with indices exceeding this value are outputted
-                                   as self.unknown_index (default = 1)
-
-        Returns:
-            ret (arr): List of integers (indices)
-        """
-        ret = []
-
-        if n_max > 0:
-
-            n_max = min(n_max, self.n_nodes)
-
-        else:
-
-            n_max = self.n_nodes
-
-        for node in nodes:
-
-            if node in self.node_index:
-
-                index = self.node_index[node]
-
-                ret.append(index) if index < n_max else ret.append(
-                    self.unknown_index)
-
-            else:
-
-                ret.append(self.unknown_index)
-
-        return ret
-
-    def decode_file(self, f_in, f_out):
-        """
-        Convert integer-encoded data file into equivalent text file
-
-        Args:
-            f_in (str): Path to input (encoded) file
-            f_out (str): Path to output (decoded) file
-        """
-        data = f_in.readlines()
-
-        for j in range(len(data)):
-
-            line_in = list(i for i in data[j].strip().split(" "))
-
-            for k in range(len(line_in)):
-
-                # Process artifacts from fairseq Lua origins
-                if '<Lua' in line_in[k]:
-
-                    line_in[k] = self.unknown_index
-
-                elif 'heritage>' in line_in[k]:
-
-                    line_in[k] = self.unknown_index
-
-                elif '<unk>' in line_in[k]:
-
-                    line_in[k] = self.unknown_index
-
-                else:
-
-                    line_in[k] = int(line_in[k])
-
-            line_out = self.sentence_from_indices(line_in)
-            f_out.write(line_out + os.linesep)
-
-    def parse_node(self, node, n_max=-1):
-        """
-        Convert single node to index, given an upper limit of indices
-
-        Args:
-            node (str): Input node
-            n_max (int, optional): Maximum allowable index; any node with index above this value is outputted as
-                                    self.unknown_index (default = 1)
-
-        Returns:
-            (int): Corresponding index
-        """
-        if n_max > 0:
-
-            n_max = min(n_max, self.n_nodes)
-
-        else:
-
-            n_max = self.n_nodes
-
-        if node in self.node_index:
-
-            index = self.node_index[node]
-
-            return index if index < n_max else self.unknown_index
-
-        else:
-            return self.unknown_index
-
-    def parse_index(self, index, n_max=-1):
-        """
-        Convert single index to its corresponding node, given an upper limit of indices
-
-        Args:
-            node (int): Input index
-            n_max (int, optional): Maximum allowable index; any index above this value is outputted as
-                                    self.unknown_token (default = 'UNKNOWN')
-
-        Returns:
-            (str): Corresponding node
-        """
-        if n_max > 0:
-
-            n_max = min(n_max, self.n_nodes)
-
-        else:
-
-            n_max = self.n_nodes
+        n_max = min(n_max, self.n_nodes) if n_max > 0 \
+            else self.n_nodes
 
         if index in self.index_node:
 
@@ -358,10 +274,61 @@ class Language:
         else:
             return self.unknown_token
 
+    def parse_nodes(self, nodes: list, n_max: int=-1):
+        """
+        Convert a list of nodes into a list of indices. Equivalent to
+            add_nodes but does not update instance
+
+        Args:
+            nodes (list): List of strings (nodes)
+            n_max (int, optional): Integer threshold for unknown index.
+                All strings in %nodes% with index exceeding this value
+                are replaced with the instance's unknown index
+
+        Returns:
+            ret (list): List of integer indices corresponding to strings
+                in %nodes%
+        """
+        ret = []
+
+        for node in nodes:
+
+            idx = self.parse_node(node, n_max)
+            ret.append(idx)
+
+        return ret
+
+    def parse_node(self, node: str, n_max: int=-1):
+        """
+        Convert single node to corresponding index
+
+        Args:
+            node (str): String (node) to convert
+            n_max (int, optional): Integer threshold for unknown index.
+                %node% is replaced by the instance's unknown index if
+                its corresponding index exceeds this value.
+
+        Returns:
+            (int): Integer index coresponding to %node%
+        """
+        n_max = min(n_max, self.n_nodes) if n_max > 0 \
+            else self.n_nodes
+
+        if node in self.node_index:
+
+            index = self.node_index[node]
+
+            return index if index < n_max else self.unknown_index
+
+        else:
+            return self.unknown_index
+
     def sort(self):
         """
-        Refresh order of dictionaries, so that nodes are ordered in terms of decreasing frequency
-        (i.e. node with index = self.n_preserve + 1 is most frequent)
+        Order dictionaries by frequency, with lower indices corresponding
+            to more frequent nodes
+
+        After operation, node with index = self.n_preserve + 1 is most frequent
         """
         temp = sorted(self.node_count.items(), key=lambda item: item[1])[
             self.n_preserve:]
@@ -375,12 +342,17 @@ class Language:
             self.index_node[i + self.n_preserve] = node
             self.node_index[node] = i + self.n_preserve
 
-    def sample(self, n_samples=50, sort=False):
+    def sample(self, n_samples: int=50):
+        """
+        Display top-k most frequent nodes and frequencies
 
+        Args:
+            n_samples (int, optional): Number of nodes to display
+        """
+
+        # Re-order dicts
+        self.sort()
         n_samples = min(n_samples, self.n_nodes - self.n_preserve)
-
-        if sort:
-            self.sort()
 
         print('\nFixed nodes:')
         print('\n\tIndex: Node')
@@ -400,201 +372,46 @@ class Language:
                                     self.node_count[self.index_node[j]]))
 
 
-def resolve_classification(classification):
+def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
+                      save_dir: str, token_prefix: str,
+                      syntactic_tag_prefix: str, n_files: int=-1):
     """
-    Function to output relevant part-of-speech tags from a MeCab.Tagger()'s output
+    Function to compile Language instances from a set of source
+        corpus files.
+    Contains one Language for tokens as well as additional Languages
+        for each syntactic tags
 
     Args:
-        classification (arr): List of features from a MeCab.Tagger()
+        source_corpus_dir (str): Directory containing corpus files
+        source_corpus_filetype (str): Filetype of corpus files
+        save_dir (str): Filepath to directory to save output Languages
+        token_prefix (str): Save prefix for Language instance
+            concerning source corpus tokens
+        syntactic_tag_prefix (str): Save prefix for Language instances
+            concerning source corpus syntactic tags
+        n_files (int, optional): Maximum number of files to use
 
     Returns:
-        (tuple): Tuple of features containing only the major and first sub-division of part-of-speech,
-                 as well as form features
-    """
-    # Part of speech tags
-    class1 = classification[0]
-    class2 = classification[1]
-
-    # Conjugation tags
-    form1 = classification[4]
-    form2 = classification[5]
-    form3 = classification[6]
-
-    return (class1, class2, form1, form2, form3)
-
-
-def parse_full(sentence, tagger, delimiter, remove_delimiter=False):
-    """
-    Function to parse a given raw string into raw token and part-of-string tags using a given Mecab.Tagger()
-
-    Args:
-        sentence (str): Input string
-        tagger (Language): Language class instance used to index individual tokens
-        delimiter (str): Sentence end delimiter (i.e. period)
-        remove_delimiter (bool, optional): Determines whether or not the delimiter token is retained in output
-
-    Returns:
-        (tuple): A tuple containing the following:
-            nodes (arr): A list of strings, correspoding to the tokens of the raw sentence
-            pos (arr): A lsit of list of strings, corresponding to the part-of-speech tag of each index for the raw sentence
-    """
-    if remove_delimiter:
-
-        sentence = sentence.replace(delimiter, '')
-
-    sentence = sentence.strip()
-    sentence = sentence.replace(' ', '')
-
-    len_parsed = 0
-
-    nodes = list()
-    pos = [list(), list(), list(), list(), list()]
-
-    tagger.parse('')
-    res = tagger.parseToNode(sentence)
-
-    while res:
-
-        len_parsed += len(res.surface)
-
-        if res.surface != '':
-
-            c = res.feature.split(",")
-            c = resolve_classification(c)
-
-            for i in range(len(pos)):
-
-                pos[i].append(c[i])
-
-            nodes.append(res.surface)
-
-        res = res.next
-
-    assert(len_parsed == len(sentence))
-
-    return nodes, pos
-
-
-def parse(sentence, tagger, delimiter, remove_delimiter=False):
-    """
-    Function to parse a given raw string into raw tokens using a given Mecab.Tagger()
-
-    Args:
-        sentence (str): Input string
-        tagger (Language): Language class instance used to index individual tokens
-        delimiter (str): Sentence end delimiter (i.e. period)
-        remove_delimiter (bool, optional): Determines whether or not the delimiter token is retained in output
-
-    Returns:
-        nodes(arr): A list of strings, correspoding to the tokens of the raw sentence
-    """
-    if remove_delimiter:
-
-        sentence = sentence.replace(delimiter, '')
-
-    sentence = sentence.strip()
-    sentence = sentence.replace(' ', '')
-
-    len_parsed = 0
-
-    nodes = list()
-
-    tagger.parse('')
-    res = tagger.parseToNode(sentence)
-
-    while res:
-
-        len_parsed += len(res.surface)
-
-        if res.surface != '':
-
-            nodes.append(res.surface)
-
-        res = res.next
-
-    assert(len_parsed == len(sentence))
-
-    return nodes
-
-
-def load_default_languages():
-
-    return load_languages(configx.CONST_DEFAULT_LANGUAGE_DIRECTORY)
-
-
-def load_languages(load_dir,
-                   node_save_prefix=configx.CONST_NODE_PREFIX,
-                   pos_save_prefix=configx.CONST_POS_PREFIX):
-    """
-    Function to load the Language set defaulted by the configx.py configuration file
-    Contains one token tagger as well as five part-of-speech taggers
-
-    Args:
-        load_dir (str, optional): Path to directory containing the Language
-        node_save_prefix (str, optional): Prefix used for saving the Language tagging tokens
-        pos_save_prefix (str, optional): Prefix used for saving the Languages outputting part-of-speech tags
-
-    Returns:
-        token_tagger (Language): Language instance for converting tokens from MeCab output
-        pos_taggers (arr): Array of Language instances for converting part-of-speech tags from MeCab output
-    """
-    token_tagger = Language(True)
-    pos_taggers = [Language(), Language(), Language(),
-                   Language(), Language(True)]
-
-    # print("\nLoading tokenizer...")
-
-    node_prefix = os.path.join(load_dir, node_save_prefix)
-    pos_prefix = os.path.join(load_dir, pos_save_prefix)
-
-    token_tagger.load_dicts(node_prefix)
-    token_tagger.sort()
-
-    for i in range(len(pos_taggers)):
-
-        # print("\nLoading part of speech tagger " + str(i) + " ...")
-
-        pos_taggers[i].load_dicts(pos_prefix + str(i))
-        pos_taggers[i].sort()
-
-    # print('\n========================================================\n')
-
-    return token_tagger, pos_taggers
-
-
-def compile_languages(data_dir=configx.CONST_CORPUS_TEXT_DIRECTORY,
-                      file_type=configx.CONST_CORPUS_TEXT_FILETYPE,
-                      save_dir=configx.CONST_DEFAULT_LANGUAGE_DIRECTORY,
-                      node_save_prefix=configx.CONST_NODE_PREFIX,
-                      pos_save_prefix=configx.CONST_POS_PREFIX,
-                      n_files=-1):
-    """
-    Function to compile the default Language set from the corpus text defaulted by the configx.py configuration file
-    Contains one token tagger as well as five part-of-speech taggers (the last of which contains the token forms)
-
-    Args:
-        data_dir (TYPE, optional): Directory to search for corpus files
-        file_type (TYPE, optional): Corpus files suffix
-        save_dir (str, optional): Path to directory containing the Language
-        node_save_prefix (str, optional): Prefix used for saving the Language tagging tokens
-        pos_save_prefix (str, optional): Prefix used for saving the Languages outputting part-of-speech tags
-        n_files (TYPE, optional): Maximum number of files to use   
+        (Language): Language of source corpus tokens
+        (list): List of Language instances of source corpus syntactic tags
 
     """
-    print("Obtaining list of corpus files...")
-    print(configx.BREAK_LINE)
-    file_list = util.get_files(data_dir, file_type, n_files)
+    assert(os.path.isdir(source_corpus_dir))
 
-    print("Found %d files...\n" % len(file_list))
+    print('Obtaining list of corpus files...')
+    print(cfg['BREAK_LINE'])
+    file_list = util.get_files(source_corpus_dir,
+                               source_corpus_filetype, n_files)
 
-    token_tagger = Language(True)
-    pos_taggers = [Language(), Language(), Language(),
-                   Language(), Language(True)]
+    print('Found %d files...\n' % len(file_list))
 
-    print("Reading files...")
-    print(configx.BREAK_LINE)
+    token_language = Language()
+    tag_languages = [Language() for i in range(len(P_PARAMS['parse_indices']))]
 
-    delimiter = token_tagger.stop_token
+    print('Reading files...')
+    print(cfg['BREAK_LINE'])
+
+    delimiter = P_PARAMS['delimiter']
     count = 0
 
     for filename in file_list[:]:
@@ -606,7 +423,7 @@ def compile_languages(data_dir=configx.CONST_CORPUS_TEXT_DIRECTORY,
 
             start_time = time.time()
 
-            # print("Processing file: " + filename)
+            print('Processing file: ' + filename)
 
             sentences = f.readlines()
 
@@ -614,58 +431,100 @@ def compile_languages(data_dir=configx.CONST_CORPUS_TEXT_DIRECTORY,
 
                 sentence = sentences[i].strip()
 
-                nodes, pos = parse_full(
-                    sentence, configx.CONST_PARSER, delimiter)
+                tokens, tags = parse.parse_full(
+                    sentence, parse.default_parser(), remove_delimiter=True,
+                    delimiter=delimiter)
 
-                token_tagger.add_sentence(nodes)
+                token_language.add_nodes(tokens)
 
-                for j in range(len(pos_taggers)):
+                for j in range(len(tag_languages)):
 
-                    pos_taggers[j].add_sentence(pos[j])
+                    tag_languages[j].add_nodes(tags[j])
 
             elapsed_time = time.time() - start_time
 
-            # print("\tSentences completed: %2d\t||\tTime elapsed: %4f" % (len(sentences), elapsed_time))
-            print("\tFile %2d of %2d processed..." % (count, len(file_list)))
+            print('\tFile %2d of %2d processed...' % (count, len(file_list)))
+            print('\tTime elapsed: %4f' % elapsed_time)
 
-    print("\nCompleted processing corpus sentences...")
-    print(configx.BREAK_LINE)
+    print('\nCompleted processing corpus sentences...')
+    print(cfg['BREAK_LINE'])
 
-    print("\tSaving languages...")
+    print('\tSaving languages...')
 
     if not os.path.isdir(save_dir):
         util.mkdir_p(save_dir)
 
-    node_prefix = os.path.join(save_dir, node_save_prefix)
-    pos_prefix = os.path.join(save_dir, pos_save_prefix)
+    token_language.sort()
+    token_language.save(save_dir, token_prefix)
+    token_language.sample()
 
-    token_tagger.sort()
-    token_tagger.save_dicts(node_prefix)
-    token_tagger.sample()
+    for i in range(len(tag_languages)):
 
-    for i in range(len(pos_taggers)):
+        tag_languages[i].sort()
+        tag_languages[i].save(save_dir, syntactic_tag_prefix + str(i))
+        tag_languages[i].sample()
 
-        pos_taggers[i].sort()
-        pos_taggers[i].save_dicts(pos_prefix + str(i))
-        pos_taggers[i].sample()
+    print('\n\tCompleted...\n')
 
-    print("\n\tCompleted...\n")
-
-    return token_tagger, pos_taggers
+    return token_language, tag_languages
 
 
-def parse_node_matrix(pos_tags, languages):
+def load_languages(load_dir: str, token_prefix: str,
+                   syntactic_tag_prefix: str, ):
     """
-    Function to convert a one-dimensional matrix of nodes into a corresponding matrix of indices
-    using a list of languages, one language per row of output
+    Function to load the Language set defaulted by the configx.py configuration
+        file
+    Contains one token tagger as well as five part-of-speech taggers
 
     Args:
-        pos_tags (arr): Array of arrays containing nodes
+        load_dir (str): Filepath to directory to load Languages instances from
+        token_prefix (str): Prefix of Language instance
+            concerning source corpus tokens
+        syntactic_tag_prefix (str): Prefix of Language instances
+            concerning source corpus syntactic tags
+
+    Returns:
+        (Language): Language of source corpus tokens
+        (list): List of Language instances of syntactic tags
+    """
+    print('\nLoading Language instance dictionaries from %s...' % load_dir)
+    print('\tLoading dict for tokens')
+
+    token_language = Language.load(load_dir, token_prefix)
+    token_language.sort()
+
+    tag_languages = list()
+    parse_labels = P_PARAMS['parse_labels']
+
+    for i in range(len(parse_labels)):
+
+        print('\tLoading dict for ' + parse_labels[i] + ' tags')
+
+        lg = Language.load(load_dir, syntactic_tag_prefix + str(i))
+        lg.sort()
+
+        tag_languages.append(lg)
+
+    print('\nFinished loading Language instances...')
+
+    return token_language, tag_languages
+
+
+def parse_node_matrix(syntactic_tags: np.ndarray, languages: list):
+    """
+    Function to convert a one-dimensional matrix of syntactic tags
+        into a corresponding matrix of indices using a list of
+        languages, one language per row of output
+
+    Args:
+        syntactic_tags (arr): Array of arrays containing syntactic tags
         languages (arr): Array of Language class instances to use for parsing
 
     Returns:
-        (np.ndarray): A one-dimensional matrix corresponding to the input array of arrays
+        (np.array): A two-dimensional matrix of indices corresponding
+            to the input array of arrays
     """
-    assert(len(pos_tags) <= len(languages))
+    assert(len(syntactic_tags) <= len(languages))
 
-    return np.array(list(languages[i].parse_node(pos_tags[i]) for i in range(len(pos_tags))))
+    return np.array(list(languages[i].parse_node(syntactic_tags[i])
+                         for i in range(len(syntactic_tags))))
