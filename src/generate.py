@@ -42,28 +42,11 @@ def generate_synthetic_pairs(
     # Return array containing start index of error in each sentence
     gen_starts = list()
 
-    # Parse template phrases
-    tokens_correct, tags_correct = parse.parse_full(
-        rule.template_correct, parse.default_parser(), None)
-    tokens_error, tags_error = parse.parse_full(
-        rule.template_error, parse.default_parser(), None)
-
-    # Obtain 2D part-of-speech matrix for errored phrase
-    # Of form (n, k), where n is the length of the phrase,
-    #   and k is the number of part-of-speech tags per token
-    tags_correct = np.array(list(
-        languages.parse_node_matrix(pos_token, tag_languages)
-        for pos_token in np.array(tags_correct).T))
-
-    tags_error = np.array(list(
-        languages.parse_node_matrix(pos_token, tag_languages)
-        for pos_token in np.array(tags_error).T))
-
-    indices_error = token_language.parse_nodes(tokens_error)
+    indices_error = token_language.parse_nodes(rule.tokens_error)
 
     if verbose:
-        print("\n\tCorrect: " + ' | '.join(tokens_correct))
-        print("\tError: " + ' | '.join(tokens_error) + '\n')
+        print("\n\tCorrect: " + ' | '.join(rule.tokens_correct))
+        print("\tError: " + ' | '.join(rule.tokens_error) + '\n')
 
     n_sentences = matches.n_sentences
 

@@ -317,6 +317,8 @@ def match_correct(rule: Rule,
     print(cfg['BREAK_SUBLINE'])
     substitute_tags = _find_substitute_tags(rule, stdb, max_token)
 
+    print(substitute_tags)
+
     # Find sentences matching template
     matches = \
         _find_template_sentences(rule, db, n_search, max_token,
@@ -336,7 +338,7 @@ def _find_substitute_tags(rule: Rule, stdb: SortedTagDatabase,
 
     for index in range(rule.n_correct_tokens):
 
-        index_tags = rule.syntactic_tags[index]
+        index_tags = rule.correct_tags[index]
 
         # Syntactic tag indices that need to be matched exactly
         requisite_indices = np.where(rule.tag_mask[index] == 1)[0]
@@ -417,7 +419,7 @@ def _find_template_sentences(
             # Syntactic tag matching leniency and tags of index i for
             #   each token
             index_mask = rule.tag_mask[:, i]
-            index_tags = rule.syntactic_tags[:, i]
+            index_tags = rule.correct_tags[:, i]
 
             # If there is leniency in the syntactic tag
             #    for all tokens, continue

@@ -205,7 +205,7 @@ if __name__ == '__main__':
                              unique_form_prefix,
                              sort_tag_prefix, sort_form_prefix)
 
-    rl = rules.RuleList(rule_file, tag_languages)
+    rl = rules.RuleList(rule_file, token_language, tag_languages)
 
     print('\nBeginning data synthesis')
     print(cfg['BREAK_LINE'])
@@ -218,30 +218,30 @@ if __name__ == '__main__':
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
-        paired_sentences, paired_starts = \
-            generate.generate_synthetic_pairs(stdb, token_language,
-                                              tag_languages, rule, matches)
+        # paired_sentences, paired_starts = \
+        #     generate.generate_synthetic_pairs(stdb, token_language,
+        #                                       tag_languages, rule, matches)
 
-        if args.manual_check:
+        # if args.manual_check:
 
-            print('\n\tManual data check enabled')
-            print(cfg['BREAK_SUBLINE'])
+        #     print('\n\tManual data check enabled')
+        #     print(cfg['BREAK_SUBLINE'])
 
-            generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
+        #     generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
 
-            validate = ''
+        #     validate = ''
 
-            while validate != 'n' and validate != 'y':
+        #     while validate != 'n' and validate != 'y':
 
-                validate = \
-                    input('\n\tWould you like to save this data? (y/n): ')
+        #         validate = \
+        #             input('\n\tWould you like to save this data? (y/n): ')
 
-            if validate == 'n':
+        #     if validate == 'n':
 
-                continue
+        #         continue
 
-        save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
-                                str(rule.number))
+        # save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
+        #                         str(rule.number))
 
-        generate.save_synthetic_sentences(
-            paired_sentences, paired_starts, save_dir, unknown=unk_token)
+        # generate.save_synthetic_sentences(
+        #     paired_sentences, paired_starts, save_dir, unknown=unk_token)

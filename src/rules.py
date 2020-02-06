@@ -11,39 +11,65 @@ import numpy as np
 
 from . import config
 from . import languages
+from . import parse
+
+from .languages import Language
 
 cfg = config.parse()
 
 R_PARAMS = cfg['rule_params']
 
 
+class TemplateMapping:
+
+    def __init__(self, rule_text: list, header_text: list):
+
+        # Arrays of tuples denoting token mappings between errored
+        #   and correct sentence
+        inserted = rule_text[
+            header_text.index(R_PARAMS['mapping_inserted'])]
+        modified = rule_text[
+            header_text.index(R_PARAMS['mapping_modified'])]
+        preserved = rule_text[
+            header_text.index(R_PARAMS['mapping_preserved'])]
+        substituted = rule_text[
+            header_text.index(R_PARAMS['mapping_substituted'])]
+
+        # Convert string representations to lists
+        self.inserted = ast.literal_eval(inserted)
+        self.modified = ast.literal_eval(modified)
+        self.preserved = ast.literal_eval(preserved)
+        self.substituted = ast.literal_eval(substituted)
+
+        self.output_indices = dict()
+
+        for i in self.inserted:
+            self.output_indices[i] = ('Insert')
+
+        for i in self.modified:
+            self.output_indices[i[0]] = ('Modify', i[1])
+
+        for i in self.preserved:
+            self.output_indices[i[0]] = ('Preserve', i[1])
+
+        for i in self.substituted:
+            self.output_indices[i[0]] = ('Substitute', i[1])
+
+    def get_output_length(self):
+
+        return max(self.output_indices.keys())
+
+    def iterate(self):
+
+        for i in range(self.get_output_length() + 1 ):
+
+            yield i, self.output_indices.get(i, ('*'))
+
+
 class Rule:
 
-    class TemplateMapping:
-
-        def __init__(self, rule_text: list, header_text: list):
-
-            # Arrays of tuples denoting token mappings between errored
-            #   and correct sentence
-            inserted = rule_text[
-                header_text.index(R_PARAMS['mapping_inserted'])]
-            modified = rule_text[
-                header_text.index(R_PARAMS['mapping_modified'])]
-            preserved = rule_text[
-                header_text.index(R_PARAMS['mapping_preserved'])]
-
-            # Convert string representations to lists
-            self.inserted = ast.literal_eval(inserted)
-            self.modified = ast.literal_eval(modified)
-            self.preserved = ast.literal_eval(preserved)
-
-        def get_output_length(self):
-
-            return len(self.inserted) + len(self.modified) + \
-                len(self.preserved)
-
     def __init__(self, rule_text: list, header_text: list,
-                 tag_languages: list):
+                 token_language: Language, tag_languages: list):
 
         self.n_tags = len(tag_languages)
 
@@ -55,20 +81,38 @@ class Rule:
         self.template_error = rule_text[
             header_text.index(R_PARAMS['template_error_phrase'])]
 
-        self.rule_string = '%s --> %s' % \
+        self.rule_string = '%s ~ %s' % \
             (self.template_error, self.template_correct)
 
         # Retrieve unencoded part-of-speech tags of the template correct phrase
-
         syntactic_tags = rule_text[
             header_text.index(R_PARAMS['syntactic_tags'])]
         syntactic_tags = syntactic_tags.split(',')
 
-        # Convert part-of-speech tags to index form
-        self.n_correct_tokens = int(len(syntactic_tags) / self.n_tags)
-        self.syntactic_tags = np.array(list(languages.parse_node_matrix(
+        syntactic_tags = np.array(list(languages.parse_node_matrix(
             syntactic_tags[i * self.n_tags: i * self.n_tags + self.n_tags],
-            tag_languages) for i in range(self.n_correct_tokens)))
+            tag_languages) for i in range(int(
+                len(syntactic_tags) / self.n_tags))))
+
+        # Parse template phrases
+        self.tokens_correct, self.tags_correct = parse.parse_full(
+            self.template_correct, parse.default_parser(), None)
+        self.tokens_error, self.tags_error = parse.parse_full(
+            self.template_error, parse.default_parser(), None)
+
+        self.correct_tags = np.array(list(
+            languages.parse_node_matrix(tags, tag_languages)
+            for tags in np.array(self.tags_correct).T))
+
+        self.error_tags = np.array(list(
+            languages.parse_node_matrix(tags, tag_languages)
+            for tags in np.array(self.tags_error).T))
+
+        # Validate Python MeCab tags with text reference
+        assert(np.array_equal(syntactic_tags, self.correct_tags))
+
+        self.n_correct_tokens = len(self.tokens_correct)
+        self.n_error_tokens = len(self.tokens_error)
 
         # Array of arrays denoting hows part-of-speech tags have been selected
         # This is marked as -1 = null, 0 = no match, 1 = match
@@ -76,8 +120,7 @@ class Rule:
         tag_mask = np.array(list(int(j) for j in tag_mask.split(',')))
         self.tag_mask = tag_mask.reshape(-1, self.n_tags)
 
-        self.mapping = self.TemplateMapping(rule_text, header_text)
-        self.n_error_tokens = self.mapping.get_output_length()
+        self.mapping = TemplateMapping(rule_text, header_text)
 
     def __str__(self):
 
@@ -85,14 +128,54 @@ class Rule:
 
     def get_mapping(self):
 
-        return self.mapping.inserted, self.mapping.modified, \
-            self.mapping.preserved
+        return self.mapping.get_mapping()
+
+    def print_mapping(self):
+
+        to_print = list()
+
+        for i, t in self.mapping.iterate():
+
+            error = self.tokens_error[i]
+            correct = self.tokens_correct[t[1]] if len(t) == 2 else ''
+            operation = t[0]
+            to_print.append('%s ~ %s, %s' % (error, correct, operation))
+
+        print('\n'.join(to_print))
+
+
+class CharacterRule(Rule):
+
+    def __init__(self, rule_text: list, header_text: list,
+                 token_language: Language, tag_languages: list):
+
+        super().__init__(rule_text, header_text, token_language, tag_languages)
+
+        self.n_correct_characters = len(self.template_correct)
+        self.n_error_characters = len(self.template_error)
+
+    def __str__(self):
+
+        return super().__str__()
+
+    def print_mapping(self):
+
+        to_print = list()
+
+        for i, t in self.mapping.iterate():
+
+            error = self.template_error[i]
+            correct = self.template_correct[t[1]] if len(t) == 2 else ''
+            operation = t[0]
+            to_print.append('%s ~ %s, %s' % (error, correct, operation))
+
+        print('\n'.join(to_print))
 
 
 class RuleList:
 
-    def __init__(self, rule_file: str, tag_languages: list,
-                 ignore_first: bool=True):
+    def __init__(self, rule_file: str, token_language: Language,
+                 tag_languages: list, ignore_first: bool=True):
 
         self.rule_dict = dict()
 
@@ -119,7 +202,14 @@ class RuleList:
             elif len(line) > 2 and line[0] != '#':
 
                 rule_count += 1
-                rule = Rule(line, header, tag_languages)
+                rule_type = line[header.index(R_PARAMS['rule_type'])]
+
+                if rule_type == R_PARAMS['type_token']:
+                    rule = Rule(line, header, token_language, tag_languages)
+
+                elif rule_type == R_PARAMS['type_character']:
+                    rule = CharacterRule(line, header, token_language,
+                                         tag_languages)
 
                 self.rule_dict[rule.number] = rule
 

@@ -96,13 +96,17 @@ if __name__ == '__main__':
         'class': 'Rule Class',
         'subclass': 'Rule Subclass',
         'number': '#',
+        'rule_type': 'Rule Type',
+        'type_token': 'Token',
+        'type_character': 'Character',
         'syntactic_tags': 'Mecab Output',
         'syntactic_tag_mask': 'Requisite Syntactic Tags',
         'template_correct_phrase': 'Template Correct Phrase',
         'template_error_phrase': 'Template Error Phrase',
         'mapping_inserted': 'Inserted',
         'mapping_modified': 'Modified',
-        'mapping_preserved': 'Preserved'
+        'mapping_preserved': 'Preserved',
+        'mapping_substituted': 'Substituted'
     }
 
     cfg['seed'] = 23
