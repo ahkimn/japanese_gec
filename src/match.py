@@ -317,8 +317,6 @@ def match_correct(rule: Rule,
     print(cfg['BREAK_SUBLINE'])
     substitute_tags = _find_substitute_tags(rule, stdb, max_token)
 
-    print(substitute_tags)
-
     # Find sentences matching template
     matches = \
         _find_template_sentences(rule, db, n_search, max_token,

@@ -215,33 +215,36 @@ if __name__ == '__main__':
     for rule, idx in rl.iterate_rules(args.gen_rule):
 
         rl.print_rule(idx)
+        rule.print_mapping()
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
-        # paired_sentences, paired_starts = \
-        #     generate.generate_synthetic_pairs(stdb, token_language,
-        #                                       tag_languages, rule, matches)
+        paired_sentences, paired_starts = \
+            generate.generate_synthetic_pairs(stdb, token_language,
+                                              tag_languages, rule, matches)
 
-        # if args.manual_check:
+        if args.manual_check:
 
-        #     print('\n\tManual data check enabled')
-        #     print(cfg['BREAK_SUBLINE'])
+            print('\n\tManual data check enabled')
+            print(cfg['BREAK_SUBLINE'])
 
-        #     generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
+            print('Rule: %s' % str(rule))
 
-        #     validate = ''
+            generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
 
-        #     while validate != 'n' and validate != 'y':
+            validate = ''
 
-        #         validate = \
-        #             input('\n\tWould you like to save this data? (y/n): ')
+            while validate != 'n' and validate != 'y':
 
-        #     if validate == 'n':
+                validate = \
+                    input('\n\tWould you like to save this data? (y/n): ')
 
-        #         continue
+            if validate == 'n':
 
-        # save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
-        #                         str(rule.number))
+                continue
 
-        # generate.save_synthetic_sentences(
-        #     paired_sentences, paired_starts, save_dir, unknown=unk_token)
+        save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
+                                str(rule.number))
+
+        generate.save_synthetic_sentences(
+            paired_sentences, paired_starts, save_dir, unknown=unk_token)

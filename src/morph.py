@@ -182,7 +182,15 @@ class Morpher:
     def morph_pos(self, base, base_form, token_language, tag_languages,
                   mecab_tagger, template, match_indices):
 
-        if self._operation == Operation.ADDITION:
+        if not self.can_morph():
+
+            return None
+
+        elif self._operation == Operation.DELETION:
+
+            return self.morph(base)
+
+        elif self._operation == Operation.ADDITION:
 
             if self.n_end - self.n_start > 1:
 
@@ -275,5 +283,18 @@ class Morpher:
 
     def can_morph(self):
 
-        return (self.morph_type == Morph.HEAD_REPLACE or
-                self.morph_type == Morph.TAIL_REPLACE)
+        return (self.morph_type != Morph.OTHER)
+
+    def verify(self, base_token, final_token):
+
+        valid = self.can_morph()
+
+        if self.is_deletion():
+
+            if len(base_token) - len(final_token) != self.del_length():
+
+                valid = False
+
+        # TODO other checks
+
+        return valid
