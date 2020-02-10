@@ -468,3 +468,38 @@ class SortedTagDatabase:
             ordered_tags = self.load_matrix('ordered_tags')
             matched_tags = ordered_tags[matched_tokens]
             return np.unique(matched_tags, axis=0)
+
+    def find_tokens_from_form(self, form: int, match_tags: np.ndarray,
+                              match_indices: np.ndarray):
+
+        form_token = self.get_form_to_token()
+        form_info = form_token.get(form, None)
+
+        valid_tokens = set()
+
+        if form_info is None:
+            return None
+
+        for tags in form_info.keys():
+
+            valid = True
+
+            for idx in match_indices:
+
+                if tags[idx] != match_tags[idx]:
+
+                    valid = False
+
+            if valid:
+
+                for token in form_info[tags]:
+
+                    valid_tokens.add(token)
+
+        if len(valid_tokens) > 0:
+
+            # Take most frequent substitute token
+            sub = min(valid_tokens)
+            return sub
+
+        return None

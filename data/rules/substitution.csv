@@ -1,0 +1,4 @@
+#,Rule Type,Template Correct Phrase,Template Error Phrase,Mecab Output,Requisite Syntactic Tags,Inserted,Modified,Preserved,Substituted
+-2,Token,書いてある,書いている,'動詞,自立,五段・カ行イ音便,連用タ接続,書く,助詞,接続助詞,*,*,て,動詞,自立,五段・ラ行,基本形,ある','1,0,0,0,0,1,0,-1,-1,1,1,0,0,0,1',[],[],'[[0, 0], [1, 1]]','[[2,2]]'
+-1,Token,終える,終わる,'動詞,自立,一段,基本形,終える','1,0,0,0,1',[],[],[],'[[0,0]]'
+-1,Token,始まる,始める,'動詞,自立,五段・ラ行,基本形,始まる','1,0,0,0,1',[],[],[],'[[0,0]]'

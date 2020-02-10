@@ -205,7 +205,7 @@ if __name__ == '__main__':
                              unique_form_prefix,
                              sort_tag_prefix, sort_form_prefix)
 
-    rl = rules.RuleList(rule_file, tag_languages)
+    rl = rules.RuleList(rule_file, token_language, tag_languages)
 
     print('\nBeginning data synthesis')
     print(cfg['BREAK_LINE'])
@@ -215,6 +215,7 @@ if __name__ == '__main__':
     for rule, idx in rl.iterate_rules(args.gen_rule):
 
         rl.print_rule(idx)
+        rule.print_mapping()
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
@@ -226,6 +227,8 @@ if __name__ == '__main__':
 
             print('\n\tManual data check enabled')
             print(cfg['BREAK_SUBLINE'])
+
+            print('Rule: %s' % str(rule))
 
             generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
 
