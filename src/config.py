@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
         'class': 'Rule Class',
         'subclass': 'Rule Subclass',
-        'number': '#',
+        'name': '#',
         'rule_type': 'Rule Type',
         'type_token': 'Token',
         'type_character': 'Character',
@@ -106,7 +106,8 @@ if __name__ == '__main__':
         'mapping_inserted': 'Inserted',
         'mapping_modified': 'Modified',
         'mapping_preserved': 'Preserved',
-        'mapping_substituted': 'Substituted'
+        'mapping_substituted': 'Substituted',
+        'mapping_deleted': 'Deleted'
     }
 
     cfg['seed'] = 23
