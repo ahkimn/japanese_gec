@@ -38,6 +38,10 @@ if __name__ == '__main__':
         help='CSV file within ./data/rules containing rule information',
         required=True)
 
+    parser.add_argument(
+        '--rule_index', metavar='RULE_INDEX', type=str,
+        help='Number/name of rule within rule file', required=True)
+
     args = parser.parse_args()
 
     rule_file = os.path.join(DIRECTORIES['rules'], args.rule_file)
@@ -53,7 +57,7 @@ if __name__ == '__main__':
                                  lang_token_prefix,
                                  lang_syntactic_tag_prefix)
 
-    rl = rules.RuleList(rule_file, tag_languages)
+    rl = rules.RuleList(rule_file, token_language, tag_languages)
 
     # Example of how to get specific rule from RuleList instance
-    print(rl.get_rule(1))
+    rl.print_rule(args.rule_index)
