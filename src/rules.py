@@ -27,10 +27,11 @@ P_PARAMS = cfg['parser_params']
 class MapOperation(Enum):
 
     INSERTION = 0
-    MODIFICATION = 1
-    PRESERVATION = 2
-    SUBSTITUTION = 3
-    NONE = 4
+    DELETION = 1
+    MODIFICATION = 2
+    PRESERVATION = 3
+    SUBSTITUTION = 4
+    NONE = 5
 
 
 class TemplateMapping:
@@ -47,18 +48,24 @@ class TemplateMapping:
             header_text.index(R_PARAMS['mapping_preserved'])]
         substituted = rule_text[
             header_text.index(R_PARAMS['mapping_substituted'])]
+        deleted = rule_text[
+            header_text.index(R_PARAMS['mapping_deleted'])]
 
         # Convert string representations to lists
         self.inserted = ast.literal_eval(inserted)
         self.modified = ast.literal_eval(modified)
         self.preserved = ast.literal_eval(preserved)
         self.substituted = ast.literal_eval(substituted)
+        self.deleted = ast.literal_eval(deleted)
 
         self.output_indices = dict()
         input_indices = list()
 
         for i in self.inserted:
             self.output_indices[i] = (MapOperation.INSERTION, -1)
+
+        for i in self.deleted:
+            input_indices.append(i)
 
         for i in self.modified:
             self.output_indices[i[0]] = (MapOperation.MODIFICATION, i[1])
@@ -92,7 +99,7 @@ class Rule:
 
         self.n_tags = len(tag_languages)
 
-        self.number = int(rule_text[header_text.index(R_PARAMS['number'])])
+        self.name = rule_text[header_text.index(R_PARAMS['name'])]
 
         # Template phrases
         self.template_correct = rule_text[
@@ -460,13 +467,17 @@ class RuleList:
                     rule = CharacterRule(line, header, token_language,
                                          tag_languages)
 
-                self.rule_dict[rule.number] = rule
+                self.rule_dict[rule.name] = rule
 
-    def print_rule(self, number):
+    def print_rule(self, name):
 
-        assert(number in self.rule_dict.keys())
+        assert(name in self.rule_dict.keys())
 
-        print('Rule %d: %s' % (number, str(self.rule_dict[number])))
+        rule = self.rule_dict[name]
+
+        print('Rule %s: %s' % (name, str(rule)))
+        print('Mapping:')
+        rule.print_mapping()
 
     def iterate_rules(self, rule_index):
 
