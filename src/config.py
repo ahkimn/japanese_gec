@@ -10,7 +10,7 @@ import os
 
 HOME_DIR = os.path.expanduser("~")
 PROJECT_DIR = os.path.join(
-    HOME_DIR, 'Projects/japanese_gec')
+    HOME_DIR, 'Projects/aitutor/japanese_gec')
 CONFIG_FILE = os.path.join(PROJECT_DIR, 'config.yml')
 
 
@@ -79,7 +79,8 @@ if __name__ == '__main__':
     cfg['parser_params'] = {
 
         'delimiter': '。',
-        'dictionary_dir': '/usr/local/lib/mecab/dic/mecab-ipadic-neologd',
+        'dictionary_dir':
+            '/usr/lib/x86_64-linux-gnu/mecab/dic/mecab-ipadic-neologd',
         'parse_indices': [0, 1, 4, 5, 6],
         'parse_labels':
         [

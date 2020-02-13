@@ -351,11 +351,9 @@ class CharacterRule(Rule):
     def _verify_wildcard_indices(self):
 
         self.left_offset = 0
-        self.right_offset = self.n_correct
+        self.right_offset = 0
 
         w_i = self.get_wildcard_indices()
-
-        print(w_i)
 
         for i in range(self.n_correct):
 
@@ -367,13 +365,16 @@ class CharacterRule(Rule):
         for i in range(self.n_correct)[::-1]:
 
             if i in w_i:
-                self.right_offset -= 1
+                self.right_offset += 1
             else:
                 break
 
         # Make sure no wildcard indices exist in middle of template phrase
         assert(all(i < self.left_offset or i >= self.right_offset
                    for i in w_i))
+
+        print(self.right_offset)
+        print(self.left_offset)
 
     def convert_phrases(self, correct_token: np.ndarray,
                         error_token: np.ndarray, token_language: Language):

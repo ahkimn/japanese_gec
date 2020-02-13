@@ -1,3 +1,4 @@
 #,Rule Type,Template Correct Phrase,Template Error Phrase,Mecab Output,Requisite Syntactic Tags,Inserted,Modified,Preserved,Substituted,Deleted
-tag_1,Character,せんせい,せんせ,"名詞,一般,*,*,せんせい","1,0,0,0,1",[],[],"[[2, 2]]",[],[3]
-tag_2,Character,食べる,食びる,"動詞,自立,一段,基本形,食べる","1,0,0,0,1",[],[],"[[0,0]]","[[1,1]]",[]
+t1,Character,せんせい,せんせ,"名詞,一般,*,*,せんせい","1,0,0,0,0",[],[],"[[2, 2]]",[],[3]
+t2,Character,かんこう,かんこ,"名詞,サ変接続,*,*,かんこう","1,0,0,0,0",[],[],"[[2,2]]",[],[3]
+t3,Character,食べる,食びる,"動詞,自立,一段,基本形,食べる","1,0,0,0,1",[],[],"[[0,0]]","[[1,1]]",[]
