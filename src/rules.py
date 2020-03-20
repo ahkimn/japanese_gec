@@ -13,8 +13,10 @@ from . import config
 from . import languages
 from . import morph
 from . import parse
+from . import util
 
 from .sorted_tag_database import SortedTagDatabase
+from .kana import KanaList
 from .languages import Language
 from enum import Enum
 
@@ -22,6 +24,13 @@ cfg = config.parse()
 
 R_PARAMS = cfg['rule_params']
 P_PARAMS = cfg['parser_params']
+
+
+class CharacterShift(Enum):
+
+    DIRECT = 0
+    CROSS_ROW = 1
+    CROSS_COLUMN = 2
 
 
 class MapOperation(Enum):
@@ -32,6 +41,14 @@ class MapOperation(Enum):
     PRESERVATION = 3
     SUBSTITUTION = 4
     NONE = 5
+
+
+class MatchType(Enum):
+
+    FULL_MATCH = 0
+    RIGHT_MATCH = 1
+    LEFT_MATCH = 2
+    ANY_MATCH = 3
 
 
 class TemplateMapping:
@@ -59,37 +76,45 @@ class TemplateMapping:
         self.deleted = ast.literal_eval(deleted)
 
         self.output_indices = dict()
-        input_indices = list()
+        self.input_indices = dict()
 
         for i in self.inserted:
             self.output_indices[i] = (MapOperation.INSERTION, -1)
 
         for i in self.deleted:
-            input_indices.append(i)
+            self.input_indices[i] = (MapOperation.DELETION, -1)
 
         for i in self.modified:
             self.output_indices[i[0]] = (MapOperation.MODIFICATION, i[1])
-            input_indices.append(i[1])
+            self.input_indices[i[1]] = (MapOperation.MODIFICATION, i[0])
 
         for i in self.preserved:
             self.output_indices[i[0]] = (MapOperation.PRESERVATION, i[1])
-            input_indices.append(i[1])
+            self.input_indices[i[1]] = (MapOperation.PRESERVATION, i[0])
 
         for i in self.substituted:
             self.output_indices[i[0]] = (MapOperation.SUBSTITUTION, i[1])
-            input_indices.append(i[1])
-
-        self.input_indices = set(input_indices)
+            self.input_indices[i[1]] = (MapOperation.SUBSTITUTION, i[0])
 
     def get_output_length(self):
 
-        return max(self.output_indices.keys())
+        return max(self.output_indices.keys()) if self.output_indices else 0
 
-    def iterate(self):
+    def get_input_length(self):
 
-        for i in range(self.get_output_length() + 1):
+        return max(self.input_indices.keys()) if self.output_indices else 0
+
+    def iterate_output(self, n):
+
+        for i in range(n):
 
             yield i, self.output_indices.get(i, (MapOperation.NONE, -1))
+
+    def iterate_input(self, n):
+
+        for i in range(n):
+
+            yield i, self.input_indices.get(i, (MapOperation.NONE, -1))
 
 
 class Rule:
@@ -177,25 +202,38 @@ class Rule:
 
         to_print = list()
 
-        for i, t in self.mapping.iterate():
+        to_print.append('Mapping: Error -> Correct')
+
+        for i, t in self.mapping.iterate_output(self.n_error):
 
             operation = t[0]
             error = self.error[i]
             correct = self.correct[t[1]] \
-                if operation != MapOperation.NONE else ''
+                if operation != MapOperation.NONE else '*'
             to_print.append('%s ~ %s, %s' % (error, correct, operation.name))
+
+        to_print.append('Mapping: Correct -> Error')
+
+        for i, t in self.mapping.iterate_input(self.n_correct):
+
+            operation = t[0]
+            error = self.error[t[1]] \
+                if (operation != MapOperation.NONE and
+                    operation != MapOperation.DELETION) else '*'
+            correct = self.correct[i]
+            to_print.append('%s ~ %s, %s' % (correct, error, operation.name))
 
         print('\n'.join(to_print))
 
-    def get_deleted_indices(self):
-
-        return set(range(self.n_correct)).difference(
-            self.mapping.input_indices)
-
     def get_wildcard_indices(self):
 
-        return set(range(self.n_error)).difference(
-            self.mapping.output_indices.keys())
+        return set(range(self.n_correct)).difference(
+            self.mapping.input_indices.keys())
+
+    # def get_wildcard_indices(self):
+
+    #     return set(range(self.n_error)).difference(
+    #         self.mapping.output_indices.keys())
 
     def convert_phrases(
             self, correct_token: np.ndarray, correct_tags: np.ndarray,
@@ -209,7 +247,7 @@ class Rule:
 
         valid_indices = set(range(n_sentences))
 
-        for e_idx, t in self.mapping.iterate():
+        for e_idx, t in self.mapping.iterate_output(self.n_error):
 
             operation = t[0]
             c_idx = t[1]
@@ -334,7 +372,8 @@ class Rule:
 class CharacterRule(Rule):
 
     def __init__(self, rule_text: list, header_text: list,
-                 token_language: Language, tag_languages: list):
+                 character_language: list, token_language: Language,
+                 tag_languages: list):
 
         super().__init__(rule_text, header_text, token_language, tag_languages)
 
@@ -344,9 +383,30 @@ class CharacterRule(Rule):
         self.correct = list(self.template_correct)
         self.error = list(self.template_error)
 
+        self.characters_correct = character_language.parse_nodes(
+            self.template_correct)
+        self.characters_error = character_language.parse_nodes(
+            self.template_error)
+
         self.n_error_tokens = 1
 
+        # If rule is conjugation-specific, match with characters
+        # Otherwise, match with base_form
+        self.match_form = not self.tag_mask[0][-2]
         self._verify_wildcard_indices()
+
+    def _get_first_non_wildcard_index(self):
+
+        for c_idx, t in self.mapping.iterate_input(self.n_correct):
+
+            operation = t[0]
+
+            if operation == MapOperation.DELETION \
+                    or operation == MapOperation.PRESERVATION:
+
+                return c_idx
+
+        return -1
 
     def _verify_wildcard_indices(self):
 
@@ -355,7 +415,7 @@ class CharacterRule(Rule):
 
         w_i = self.get_wildcard_indices()
 
-        print(w_i)
+        self.n_matched_indices = self.n_correct - len(w_i)
 
         for i in range(self.n_correct):
 
@@ -375,6 +435,79 @@ class CharacterRule(Rule):
         assert(all(i < self.left_offset or i >= self.right_offset
                    for i in w_i))
 
+        if self.left_offset == 0 and self.right_offset == self.n_correct:
+            self.match_type = MatchType.FULL_MATCH
+
+        elif self.left_offset != 0 and self.right_offset == self.n_correct:
+            self.match_type = MatchType.RIGHT_MATCH
+
+        elif self.left_offset == 0 and self.right_offset != self.n_correct:
+            self.match_type = MatchType.LEFT_MATCH
+
+        else:
+            self.match_type = MatchType.ANY_MATCH
+
+    def match_characters(self, characters: np.ndarray, lengths: np.ndarray):
+
+        max_char = characters.shape[-1]
+
+        match_indices = \
+            self.characters_correct[self.left_offset:self.right_offset]
+        match_array = util.search_2d(
+            characters.reshape(-1, max_char), match_indices)
+
+        n_indices = len(match_indices)
+        n_matches = np.sum(match_array, axis=1)
+
+        # Ignore cases with multiple matches (for simplicity)
+        if self.match_type == MatchType.ANY_MATCH:
+
+            valid = np.where(n_matches == 1)[0]
+
+        # TODO: Do last case/first case depending on left/right offset
+        else:
+
+            valid = np.where(n_matches > 0)[0]
+
+        valid_matches = match_array[valid]
+        valid_lengths = lengths.reshape(-1)[valid]
+
+        if self.match_type == MatchType.RIGHT_MATCH:
+
+            # Match last match
+            index = max_char - \
+                np.argmax(np.flip(valid_matches, axis=1), axis=1) - n_indices
+
+        else:
+
+            # Match first match
+            index = np.argmax(valid_matches, axis=1)
+
+        match_end = index + n_indices
+
+        f1 = (match_end == valid_lengths)
+        f2 = (index == 0)
+
+        # Match full token
+        if self.match_type == MatchType.FULL_MATCH:
+
+            valid = valid[np.where(np.logical_and(f1, f2))]
+
+        # Match on right side of token
+        elif self.match_type == MatchType.RIGHT_MATCH:
+
+            valid = valid[np.where(f1)]
+
+        # Match on left side of token
+        elif self.match_type == MatchType.LEFT_MATCH:
+
+            valid = valid[np.where(f2)]
+
+        ret = np.zeros(lengths.size, dtype='bool')
+        ret[valid] = True
+
+        return ret.reshape(lengths.shape)
+
     def convert_phrases(self, correct_token: np.ndarray,
                         error_token: np.ndarray, token_language: Language):
 
@@ -382,56 +515,108 @@ class CharacterRule(Rule):
         diff = self.n_error - self.n_correct
 
         valid_indices = set(range(n_sentences))
+        first_index = self._get_first_non_wildcard_index()
 
         for j in range(n_sentences):
 
-            correct_phrase = token_language.parse_indices(
-                correct_token[j], delimiter='')
-            error_phrase = correct_phrase[:self.left_offset]
-            edit_phrase = correct_phrase[self.left_offset:self.right_offset]
+            try:
 
-            # Make sure matched phrase contains enough characters
-            assert(len(correct_phrase) >= max(self.mapping.input_indices) + 1)
+                correct = token_language.parse_indices(
+                    correct_token[j], delimiter='')
 
-            for e_idx, t in self.mapping.iterate():
+                # Make sure matched phrase contains enough characters
+                assert(len(correct) >= self.n_matched_indices)
 
-                operation = t[0]
-                c_idx = t[1]
+                align_offset = self.left_offset
 
-                if operation == MapOperation.INSERTION:
+                if self.match_type == MatchType.FULL_MATCH:
 
-                    error_phrase += self.error[e_idx]
+                    edit = correct[:]
+                    error = []
 
-                # TODO: Clarify if this is necessary for character rules
-                elif operation == MapOperation.MODIFICATION:
+                elif self.match_type == MatchType.RIGHT_MATCH:
 
-                    raise ValueError
+                    edit = correct[-self.n_matched_indices:]
+                    error = correct[:-self.n_matched_indices]
 
-                elif operation == MapOperation.PRESERVATION:
+                elif self.match_type == MatchType.LEFT_MATCH:
 
-                    error_phrase += edit_phrase[c_idx]
-
-                elif operation == MapOperation.SUBSTITUTION:
-
-                    # TODO: Make this more comprehensive
-                    #   (i.e. same row/column tokens)
-                    error_phrase += self.error[e_idx]
+                    edit = correct[:self.n_matched_indices]
+                    error = []
 
                 else:
 
-                    raise ValueError
+                    align_char = self.correct[first_index]
+                    align_index = correct.index(align_char)
+                    align_offset = align_index - \
+                        (first_index - self.left_offset)
+                    edit = correct[align_offset:align_offset +
+                                   self.n_matched_indices]
+                    error = correct[:align_offset]
 
-            error_phrase += correct_phrase[self.right_offset:]
-            assert(len(error_phrase) == len(correct_phrase) + diff)
-            error_token[j][0] = token_language.add_node(error_phrase)
+                for e_idx, t in self.mapping.iterate_output(self.n_error):
+
+                    operation = t[0]
+                    c_idx = t[1]
+                    edit_index = c_idx - align_offset
+
+                    if operation == MapOperation.INSERTION:
+
+                        error += self.error[e_idx]
+
+                    # TODO: Clarify if this is necessary for character rules
+                    elif operation == MapOperation.MODIFICATION:
+
+                        raise ValueError
+
+                    elif operation == MapOperation.PRESERVATION:
+
+                        error += edit[edit_index]
+
+                    elif operation == MapOperation.SUBSTITUTION:
+
+                        # TODO: Make this more comprehensive
+                        #   (i.e. same row/column tokens)
+                        error += self.error[e_idx]
+
+                    elif operation == MapOperation.DELETION:
+
+                        continue
+
+                    # Null Operations
+                    else:
+
+                        continue
+
+                if self.match_type == MatchType.LEFT_MATCH:
+
+                    error += correct[self.n_matched_indices:]
+
+                elif self.match_type == MatchType.ANY_MATCH:
+
+                    error += \
+                        correct[align_offset + self.n_matched_indices:]
+
+                error = ''.join(error)
+
+                assert(len(error) == len(correct) + diff)
+                error_token[j][0] = token_language.add_node(error)
+
+            except Exception:
+
+                print('Warning: Failed to synthesize token for: %s' %
+                      ''.join(correct))
+
+                valid_indices.remove(j)
 
         return valid_indices
 
 
 class RuleList:
 
-    def __init__(self, rule_file: str, token_language: Language,
-                 tag_languages: list, ignore_first: bool=True):
+    def __init__(self, rule_file: str, character_language: Language,
+                 token_language: Language, tag_languages: list,
+                 kana_list: KanaList, ignore_first: bool=True):
 
         self.rule_dict = dict()
 
@@ -464,8 +649,8 @@ class RuleList:
                     rule = Rule(line, header, token_language, tag_languages)
 
                 elif rule_type == R_PARAMS['type_character']:
-                    rule = CharacterRule(line, header, token_language,
-                                         tag_languages)
+                    rule = CharacterRule(line, header, character_language,
+                                         token_language, tag_languages)
 
                 self.rule_dict[rule.name] = rule
 
@@ -476,7 +661,7 @@ class RuleList:
         rule = self.rule_dict[name]
 
         print('Rule %s: %s' % (name, str(rule)))
-        print('Mapping:')
+        print(cfg['BREAK_LINE'])
         rule.print_mapping()
 
     def iterate_rules(self, rule_index):

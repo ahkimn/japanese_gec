@@ -37,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--lang_token_prefix', metavar='LANG_TOKEN_PREFIX',
         default=L_PARAMS['token_prefix'], type=str,
-        help='Filename prefix of saved Language instance containing \
+        help='Filename prefix of Language instance containing \
             token information', required=False)
 
     parser.add_argument(
@@ -47,9 +47,9 @@ if __name__ == '__main__':
             syntactic tag information', required=False)
 
     parser.add_argument(
-        '--save_dir', metavar='SAVE_DIR', default='tmp',
+        '--save_dir', metavar='SAVE_DIR',
         type=str, help='sub-directory of ./data/languages \
-            to save Language instance dictionaries', required=False)
+            to save Language instance dictionaries', required=True)
 
     parser.add_argument(
         '--token_prefix', metavar='TOKEN_PREFIX',
@@ -62,6 +62,12 @@ if __name__ == '__main__':
         default=L_PARAMS['syntactic_tag_prefix'], type=str,
         help='Save filename prefix of Language instances containing \
             syntactic tag information', required=False)
+
+    parser.add_argument(
+        '--character_prefix', metavar='CHARACTER_PREFIX',
+        default=L_PARAMS['character_prefix'], type=str,
+        help='Save filename prefix of Language instances containing \
+            character information', required=False)
 
     parser.add_argument(
         '--n_files', metavar='N_FILES', default=100, type=int,
@@ -79,9 +85,11 @@ if __name__ == '__main__':
 
     token_prefix = args.token_prefix
     syntactic_tag_prefix = args.syntactic_tag_prefix
+    character_prefix = args.character_prefix
     n_files = args.n_files
 
     languages.compile_languages(
         source_corpus_dir, source_corpus_filetype,
         language_save_dir, token_prefix,
-        syntactic_tag_prefix, n_files)
+        syntactic_tag_prefix, character_prefix,
+        n_files)

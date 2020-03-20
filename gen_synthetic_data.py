@@ -4,6 +4,7 @@ import os
 from src import config
 from src import databases
 from src import generate
+from src import kana
 from src import languages
 from src import match
 from src import rules
@@ -15,6 +16,7 @@ cfg = config.parse()
 
 D_PARAMS = cfg['data_params']
 L_PARAMS = cfg['language_params']
+M_PARAMS = cfg['morpher_params']
 P_PARAMS = cfg['parser_params']
 DB_PARAMS = cfg['database_params']
 DIRECTORIES = cfg['directories']
@@ -60,6 +62,12 @@ if __name__ == '__main__':
         help='Filename prefix of Language instances containing \
             syntactic tag information', required=False)
 
+    parser.add_argument(
+        '--lang_character_prefix', metavar='LANG_CHARACTER_PREFIX',
+        default=L_PARAMS['character_prefix'], type=str,
+        help='Filename prefix of Language instance containing \
+            character information', required=False)
+
     # ====================================================
     #           Parameters for loaded rule file
     # ====================================================
@@ -86,34 +94,34 @@ if __name__ == '__main__':
             to load SortedTagDatabase instance from', required=True)
 
     parser.add_argument(
-        '--stdb_unique_token_prefix', metavar='STDB_UNIQUE_TOKEN_PREFIX',
+        '--stdb_unique_token_prefix', metavar='UNIQUE_TOKEN_PREFIX',
         default=DB_PARAMS['unique_token_prefix'], type=str,
-        help='Save filename prefix of SortedTagDatabase matrix containing \
+        help='Filename prefix of SortedTagDatabase matrix containing \
             unique tokens', required=False)
 
     parser.add_argument(
         '--stdb_unique_syntactic_tag_prefix',
-        metavar='STDB_UNIQUE_SYNTACTIC_TAG_PREFIX',
+        metavar='UNIQUE_SYNTACTIC_TAG_PREFIX',
         default=DB_PARAMS['unique_syntactic_tag_prefix'], type=str,
-        help='Save filename prefix of SortedTagDatabase matrix containing \
+        help='Filename prefix of SortedTagDatabase matrix containing \
             unique syntactic tags (excluding root forms)', required=False)
 
     parser.add_argument(
-        '--stdb_unique_form_prefix', metavar='STDB_UNIQUE_FORM_PREFIX',
+        '--stdb_unique_form_prefix', metavar='UNIQUE_FORM_PREFIX',
         default=DB_PARAMS['unique_form_prefix'], type=str,
-        help='Save filename prefix of SortedTagDatabase matrix containing \
+        help='Filename prefix of SortedTagDatabase matrix containing \
             unique root form information', required=False)
 
     parser.add_argument(
-        '--stdb_sort_tag_prefix', metavar='STDB_SORT_TAG_PREFIX',
+        '--stdb_sort_tag_prefix', metavar='SORT_TAG_PREFIX',
         default=DB_PARAMS['sort_tag_prefix'], type=str,
-        help='Save filename prefix of SortedTagDatabase matrix containing \
+        help='Filename prefix of SortedTagDatabase matrix containing \
             sort order of unique syntactic tag matrix ', required=False)
 
     parser.add_argument(
-        '--stdb_sort_form_prefix', metavar='STDB_SORT_FORM_PREFIX',
+        '--stdb_sort_form_prefix', metavar='SORT_FORM_PREFIX',
         default=DB_PARAMS['sort_form_prefix'], type=str,
-        help='Save filename prefix of SortedTagDatabase matrix containing \
+        help='Filename prefix of SortedTagDatabase matrix containing \
             sort order of unique form matrix', required=False)
 
     # ====================================================
@@ -126,23 +134,71 @@ if __name__ == '__main__':
         type=str, help='sub-directory of ./data/databases \
             to load Database instance from', required=True)
 
-    parser.add_argument(
-        '--db_length_prefix', metavar='DB_LENGTH_PREFIX',
-        default=DB_PARAMS['length_prefix'], type=str,
-        help='Save filename prefix of Database matrices containing \
-            length of each sentence', required=False)
+    # ====================================================
 
     parser.add_argument(
-        '--db_token_prefix', metavar='DB_TOKEN_PREFIX',
-        default=DB_PARAMS['token_prefix'], type=str,
-        help='Save filename prefix of Database matrices containing \
-            token information', required=False)
+        '--db_form_char_prefix', metavar='DB_FORM_PREFIX',
+        default=DB_PARAMS['form_char_prefix'], type=str,
+        help='Filename prefix of database matrices containing \
+            character information for each base form', required=False)
+
+    parser.add_argument(
+        '--db_form_char_len_prefix', metavar='DB_FORM_PREFIX',
+        default=DB_PARAMS['form_char_len_prefix'], type=str,
+        help='Filename prefix of database matrices containing \
+            lengths (in characters) for each base form', required=False)
+
+    parser.add_argument(
+        '--db_sentence_len_prefix', metavar='DB_SENTENCE_LENGTH_PREFIX',
+        default=DB_PARAMS['sentence_len_prefix'], type=str,
+        help='Filename prefix of Database matrices containing \
+            length of each sentence', required=False)
 
     parser.add_argument(
         '--db_syntactic_tag_prefix', metavar='DB_SYNTACTIC_TAG_PREFIX',
         default=DB_PARAMS['syntactic_tag_prefix'], type=str,
         help='Save filename prefix of Database matrices containing \
             syntactic tag information', required=False)
+
+    parser.add_argument(
+        '--db_token_char_prefix', metavar='DB_CHARACTER_PREFIX',
+        default=DB_PARAMS['token_char_prefix'], type=str,
+        help='Filename prefix of database matrices containing \
+            character information for each token', required=False)
+
+    parser.add_argument(
+        '--db_token_char_len_prefix', metavar='DB_CHARACTER_PREFIX',
+        default=DB_PARAMS['token_char_len_prefix'], type=str,
+        help='Filename prefix of database matrices containing \
+            lengths (in characters) for each token', required=False)
+
+    parser.add_argument(
+        '--db_token_prefix', metavar='DB_TOKEN_PREFIX',
+        default=DB_PARAMS['token_prefix'], type=str,
+        help='Filename prefix of Database matrices containing \
+            token information', required=False)
+
+    parser.add_argument(
+        '--db_max_sentence_length', metavar='MAX_SENTENCE_LENGTH',
+        default=DB_PARAMS['max_sentence_length'], help='Maximum number of \
+            tokens (as parsed by MeCab) allowed in each Database sentence',
+        required=False)
+
+    parser.add_argument(
+        '--db_max_token_length', metavar='MAX_SENTENCE_LENGTH',
+        default=DB_PARAMS['max_token_length'], help='Maximum number of \
+            characters in each token (as parsed by MeCab) of the Database \
+            instance',
+        required=False)
+
+    # ====================================================
+    #               Parameters for kana file
+    # ====================================================
+
+    parser.add_argument('--kana_file', metavar='KANA_FILE',
+                        default=M_PARAMS['kana_default'],
+                        type=str, help='File within data/const containing organized \
+                    list of kana', required=False)
 
     # ====================================================
     #               Parameters for saved files
@@ -168,44 +224,47 @@ if __name__ == '__main__':
 
     lang_token_prefix = args.lang_token_prefix
     lang_syntactic_tag_prefix = args.lang_syntactic_tag_prefix
+    lang_character_prefix = args.lang_character_prefix
 
-    token_language, tag_languages = \
+    token_language, tag_languages, character_language = \
         languages.load_languages(lang_load_dir,
                                  lang_token_prefix,
-                                 lang_syntactic_tag_prefix)
+                                 lang_syntactic_tag_prefix,
+                                 lang_character_prefix)
+
     unk_token = token_language.unknown_token
 
     database_load_dir = os.path.join(
         DIRECTORIES['databases'], args.db_load_dir)
 
-    token_prefix = args.db_token_prefix
-    syntactic_tag_prefix = args.db_syntactic_tag_prefix
-    length_prefix = args.db_length_prefix
-
     db = databases.Database(
-        token_prefix,
-        syntactic_tag_prefix,
-        length_prefix,
-        database_load_dir)
+        args.db_form_char_prefix,
+        args.db_form_char_len_prefix,
+        args.db_max_sentence_length,
+        args.db_max_token_length,
+        args.db_sentence_len_prefix,
+        args.db_syntactic_tag_prefix,
+        args.db_token_char_prefix,
+        args.db_token_char_len_prefix,
+        args.db_token_prefix,
+        partition_dir=database_load_dir)
 
     # Load SortedTagDatabase instance
     stdb_load_dir = os.path.join(
         DIRECTORIES['sorted_tag_databases'], args.stdb_load_dir)
 
-    unique_token_prefix = args.stdb_unique_token_prefix
-    unique_syntactic_tag_prefix = args.stdb_unique_syntactic_tag_prefix
-    unique_form_prefix = args.stdb_unique_form_prefix
-
-    sort_tag_prefix = args.stdb_sort_tag_prefix
-    sort_form_prefix = args.stdb_sort_form_prefix
-
     stdb = SortedTagDatabase(stdb_load_dir,
-                             unique_token_prefix,
-                             unique_syntactic_tag_prefix,
-                             unique_form_prefix,
-                             sort_tag_prefix, sort_form_prefix)
+                             args.stdb_unique_token_prefix,
+                             args.stdb_unique_syntactic_tag_prefix,
+                             args.stdb_unique_form_prefix,
+                             args.stdb_sort_tag_prefix,
+                             args.stdb_sort_form_prefix)
 
-    rl = rules.RuleList(rule_file, token_language, tag_languages)
+    kana_file = os.path.join(DIRECTORIES['const'], args.kana_file)
+    KL = kana.KanaList(kana_file)
+
+    rl = rules.RuleList(rule_file, character_language, token_language,
+                        tag_languages, kana_list=KL)
 
     print('\nBeginning data synthesis')
     print(cfg['BREAK_LINE'])
@@ -214,8 +273,8 @@ if __name__ == '__main__':
 
     for rule, idx in rl.iterate_rules(args.gen_rule):
 
+        print('\n\n')
         rl.print_rule(idx)
-        rule.print_mapping()
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
@@ -244,7 +303,7 @@ if __name__ == '__main__':
                 continue
 
         save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
-                                str(rule.number))
+                                rule.name)
 
         generate.save_synthetic_sentences(
             paired_sentences, paired_starts, save_dir, unknown=unk_token)

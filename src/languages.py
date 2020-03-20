@@ -15,6 +15,8 @@ from . import config
 from . import parse
 from . import util
 
+from typing import Union
+
 cfg = config.parse()
 
 D_PARAMS = cfg['data_params']
@@ -173,12 +175,12 @@ class Language:
         pickle.dump(self.node_count, open(save_node_count, 'wb'))
         pickle.dump(self.node_index, open(save_node_index, 'wb'))
 
-    def add_nodes(self, nodes: list):
+    def add_nodes(self, nodes: Union[list, str]):
         """
         Add a list of nodes to self
 
         Args:
-            nodes (list): List of nodes
+            nodes (list or str): List of nodes
 
         Returns:
             TYPE: Description
@@ -274,7 +276,7 @@ class Language:
         else:
             return self.unknown_token
 
-    def parse_nodes(self, nodes: list, n_max: int=-1):
+    def parse_nodes(self, nodes: Union[list, str], n_max: int=-1):
         """
         Convert a list of nodes into a list of indices. Equivalent to
             add_nodes but does not update instance
@@ -374,7 +376,8 @@ class Language:
 
 def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
                       save_dir: str, token_prefix: str,
-                      syntactic_tag_prefix: str, n_files: int=-1):
+                      syntactic_tag_prefix: str, character_prefix: str,
+                      n_files: int=-1):
     """
     Function to compile Language instances from a set of source
         corpus files.
@@ -389,6 +392,8 @@ def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
             concerning source corpus tokens
         syntactic_tag_prefix (str): Save prefix for Language instances
             concerning source corpus syntactic tags
+        character_prefix (str): Save prefix for Language instance
+            concerning source corpus characters
         n_files (int, optional): Maximum number of files to use
 
     Returns:
@@ -407,6 +412,7 @@ def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
 
     token_language = Language()
     tag_languages = [Language() for i in range(len(P_PARAMS['parse_indices']))]
+    character_language = Language()
 
     print('Reading files...')
     print(cfg['BREAK_LINE'])
@@ -434,6 +440,10 @@ def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
                 tokens, tags = parse.parse_full(
                     sentence, parse.default_parser(), remove_delimiter=True,
                     delimiter=delimiter)
+
+                for token in tokens:
+
+                    character_language.add_nodes(token)
 
                 token_language.add_nodes(tokens)
 
@@ -464,13 +474,18 @@ def compile_languages(source_corpus_dir: str, source_corpus_filetype: str,
         tag_languages[i].save(save_dir, syntactic_tag_prefix + str(i))
         tag_languages[i].sample()
 
+    character_language.sort()
+    character_language.save(save_dir, character_prefix)
+    character_language.sample()
+
     print('\n\tCompleted...\n')
 
-    return token_language, tag_languages
+    return token_language, tag_languages, character_language
 
 
 def load_languages(load_dir: str, token_prefix: str,
-                   syntactic_tag_prefix: str, ):
+                   syntactic_tag_prefix: str,
+                   character_prefix: str):
     """
     Function to load the Language set defaulted by the configx.py configuration
         file
@@ -482,6 +497,8 @@ def load_languages(load_dir: str, token_prefix: str,
             concerning source corpus tokens
         syntactic_tag_prefix (str): Prefix of Language instances
             concerning source corpus syntactic tags
+        character_prefix (str): Prefix of Language instance
+            concerning source corpus characters
 
     Returns:
         (Language): Language of source corpus tokens
@@ -505,9 +522,12 @@ def load_languages(load_dir: str, token_prefix: str,
 
         tag_languages.append(lg)
 
+    character_language = Language.load(load_dir, character_prefix)
+    character_language.sort()
+
     print('\nFinished loading Language instances...')
 
-    return token_language, tag_languages
+    return token_language, tag_languages, character_language
 
 
 def parse_node_matrix(syntactic_tags: np.ndarray, languages: list):

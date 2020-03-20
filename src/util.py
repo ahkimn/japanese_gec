@@ -196,6 +196,34 @@ def search_1d(arr, indices, vals, n, _len):
     return ret
 
 
+
+def search_2d(arr, vals):
+    """
+    Perform a rolling search, looking for a template within a given 2D-array
+
+    Args:
+        arr (np.ndarray): Array to search
+        vals (np.ndarray): Values to match
+
+    Returns:
+        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+    """
+    len_template = len(vals)
+
+    n_match = arr.shape[0]
+    n_indices = arr.shape[1]
+
+    n_roll = n_indices - len_template + 1
+    ret = np.zeros((n_match, n_roll), dtype=np.bool)
+
+    for i in range(n_roll):
+
+        match = np.all(arr[:, i:i + len_template] == vals, axis=1)
+        ret[:, i] = match
+
+    return ret
+
+
 def check_matched_indices(tags, check, possible_tags):
     """
     Determine the type of a match of part-of-speech indices where the types are defined by the possible_tags array

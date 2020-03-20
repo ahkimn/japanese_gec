@@ -142,7 +142,7 @@ def generate_synthetic_pairs(
 
                     printed_in_rule += 1
 
-                t_start, t_stop = 0, matches.subrule_lengths[i][j]
+                t_start, t_stop = 0, matches.subrule_sentence_lengths[i][j]
 
                 if template_sentence[0] == token_language.start_token:
 
@@ -255,9 +255,9 @@ def save_synthetic_sentences(paired_sentences: list, paired_starts: list,
                 if unknown is not None and (unknown in error_sentence or
                                             unknown in correct_sentence):
 
-                    print('WARNING: Pair %s -> %s contains unknown tokens'
-                          % (error_sentence, correct_sentence))
-
+                    # print('WARNING: Pair %s -> %s contains unknown tokens'
+                    #       % (error_sentence, correct_sentence))
+                    print('WARNING: Unknown Tokens')
                     continue
 
                 csv_writer.writerow(

@@ -25,19 +25,66 @@ DIRECTORIES = cfg['directories']
 
 class Database:
 
-    def __init__(self, db_token_prefix: str,
-                 db_syntactic_tag_prefix: str, length_prefix: str,
-                 partition_dir: str, max_sentence_length: int=50,
-                 partition_size: int=50000):
+    """Summary
 
-        self.length_prefix = length_prefix
-        self.token_prefix = db_token_prefix
-        self.syntactic_tag_prefix = db_syntactic_tag_prefix
+    Attributes:
+        fn_dict (dict): Description
+        form_char_prefix (TYPE): Description
+        form_len_prefix (TYPE): Description
+        matrix_dict (dict): Description
+        max_sentence_length (TYPE): Description
+        max_token_length (TYPE): Description
+        n_partitions (int): Description
+        n_sentences (int): Description
+        partition_dir (TYPE): Description
+        partition_lengths (list): Description
+        partition_sizes (list): Description
+        sentence_len_prefix (TYPE): Description
+        syntactic_tag_prefix (TYPE): Description
+        token_char_prefix (TYPE): Description
+        token_len_prefix (TYPE): Description
+        token_prefix (TYPE): Description
+    """
 
-        self.partition_dir = partition_dir
+    def __init__(self,
+                 form_char_prefix: str,
+                 form_char_len_prefix: str,
+                 max_sentence_length: int,
+                 max_token_length: int,
+                 sentence_len_prefix: str,
+                 syntactic_tag_prefix: str,
+                 token_char_prefix: str,
+                 token_char_len_prefix: str,
+                 token_prefix: str,
+                 partition_dir: str):
+        """Summary
+
+        Args:
+            form_char_prefix (str): Description
+            form_char_len_prefix (str): Description
+            max_sentence_length (int): Description
+            max_token_length (int): Description
+            sentence_len_prefix (str): Description
+            syntactic_tag_prefix (str): Description
+            token_char_prefix (str): Description
+            token_char_len_prefix (str): Description
+            token_prefix (str): Description
+            partition_dir (str): Description
+        """
+        self.token_char_prefix = token_char_prefix
+        self.form_char_prefix = form_char_prefix
+
+        self.token_len_prefix = token_char_len_prefix
+        self.form_len_prefix = form_char_len_prefix
+
+        self.token_prefix = token_prefix
+        self.syntactic_tag_prefix = syntactic_tag_prefix
+        self.sentence_len_prefix = sentence_len_prefix
 
         self.max_sentence_length = max_sentence_length
-        self.partition_size = partition_size
+        self.max_token_length = max_token_length
+
+        self.partition_dir = partition_dir
 
         self.n_sentences = 0
         self.n_partitions = 0
@@ -45,20 +92,62 @@ class Database:
         self.partition_sizes = []
 
         self.matrix_dict = {}
-
+        self.fn_dict = {}
         self._check_partitions()
 
-    def _token_matrix(self, pad: int):
+    def _character_matrix(self, size, pad: int):
+        """Summary
 
-        return np.full((self.partition_size,
-                        self.max_sentence_length + 2),
+        Args:
+            size (TYPE): Description
+            pad (int): Description
+
+        Returns:
+            TYPE: Description
+        """
+        return np.full((size,
+                        self.max_sentence_length + 2,
+                        self.max_token_length),
                        pad, dtype='uint32')
 
-    def _tag_matrix(self, pad_indices: list):
+    def _len_matrix(self, size, pad: int):
+        """Summary
 
+        Args:
+            size (TYPE): Description
+            pad (int): Description
+
+        Returns:
+            TYPE: Description
+        """
+        return np.full((size,
+                        self.max_sentence_length + 2),
+                       pad, dtype='uint8')
+
+    def _sentence_len_matrix(self, size):
+        """Summary
+
+        Args:
+            size (TYPE): Description
+
+        Returns:
+            TYPE: Description
+        """
+        return np.zeros(size, dtype='uint8')
+
+    def _tag_matrix(self, size, pad_indices: list):
+        """Summary
+
+        Args:
+            size (TYPE): Description
+            pad_indices (list): Description
+
+        Returns:
+            TYPE: Description
+        """
         n_tags = len(P_PARAMS['parse_indices'])
 
-        mat = np.zeros((self.partition_size,
+        mat = np.zeros((size,
                         self.max_sentence_length + 2, n_tags),
                        dtype='uint32')
 
@@ -67,20 +156,37 @@ class Database:
 
         return mat
 
-    def _len_matrix(self):
+    def _token_matrix(self, size, pad: int):
+        """Summary
 
-        return np.zeros(self.partition_size, dtype='uint8')
+        Args:
+            size (TYPE): Description
+            pad (int): Description
 
-    def construct(self, token_language: languages.Language,
+        Returns:
+            TYPE: Description
+        """
+        return np.full((size,
+                        self.max_sentence_length + 2),
+                       pad, dtype='uint32')
+
+    def construct(self,
+                  character_language: languages.Language,
+                  token_language: languages.Language,
                   tag_languages: languages.Language,
                   source_corpus_dir: str,
                   source_corpus_filetype: str,
-                  n_files: int=-1):
+                  n_files: int=-1,
+                  partition_size: int=50000):
         """
-
         Args:
+            character_language (languages.Language): Description
+            token_language (languages.Language): Description
+            tag_languages (languages.Language): Description
             source_corpus_dir (str): Description
             source_corpus_filetype (str): Description
+            n_files (int, optional): Description
+            partition_size (int, optional): Description
         """
         file_list = util.get_files_recursive(
             source_corpus_dir,
@@ -92,9 +198,21 @@ class Database:
         n_files_processed = 0
         n_current = 0
 
-        len_matrix = self._len_matrix()
-        token_matrix = self._token_matrix(token_language.pad_index)
-        tag_matrix = self._tag_matrix(list(l.pad_index for l in tag_languages))
+        token_matrix = self._token_matrix(
+            partition_size, pad=token_language.pad_index)
+        tag_matrix = self._tag_matrix(
+            partition_size,
+            pad_indices=list(l.pad_index for l in tag_languages))
+        sentence_len_matrix = self._sentence_len_matrix(partition_size)
+
+        token_char_matrix = \
+            self._character_matrix(
+                partition_size, character_language.pad_index)
+        form_char_matrix = self._character_matrix(
+            partition_size, character_language.pad_index)
+
+        token_len_matrix = self._len_matrix(partition_size, pad=0)
+        form_len_matrix = self._len_matrix(partition_size, pad=0)
 
         partition_start = time.time()
 
@@ -121,9 +239,6 @@ class Database:
                 if sentence in unique_sentences:
                     continue
 
-                else:
-                    unique_sentences.add(sentence)
-
                 tokens, tags = parse.parse_full(
                     sentence, parser, remove_delimiter=True,
                     delimiter=delimiter)
@@ -133,10 +248,9 @@ class Database:
 
                 # Skip sentences exceeding maximum length
                 if n_tokens > self.max_sentence_length:
-
                     continue
 
-                len_matrix[n_current] = n_tokens
+                unique_sentences.add(sentence)
 
                 # Add SOS token and then copy token index values
                 token_matrix[n_current, 0] = token_language.start_index
@@ -156,13 +270,55 @@ class Database:
                     tag_matrix[n_current, 1 + n_tokens, j] = \
                         tag_languages[j].stop_index
 
+                # Add length of current sentence
+                sentence_len_matrix[n_current] = n_tokens
+
+                forms = tags[-1]
+                form_lengths = list(len(f) for f in forms)
+                token_lengths = list(len(t) for t in tokens)
+
+                form_len_matrix[n_current, 1:1 + n_tokens] = form_lengths
+                token_len_matrix[n_current, 1:1 + n_tokens] = token_lengths
+
+                for j in range(n_tokens):
+
+                    form = forms[j]
+                    token = tokens[j]
+
+                    n_char_form = form_lengths[j]
+                    n_char_token = token_lengths[j]
+
+                    if n_char_form > self.max_token_length:
+
+                        form_len_matrix[n_current, j + 1] = 0
+
+                    else:
+
+                        form_char_matrix[n_current, j + 1, :n_char_form] = \
+                            character_language.parse_nodes(form)
+
+                    if n_char_token > self.max_token_length:
+
+                        token_len_matrix[n_current, j + 1] = 0
+
+                    else:
+
+                        token_char_matrix[n_current, j + 1, :n_char_token] = \
+                            character_language.parse_nodes(token)
+
                 self.n_sentences += 1
                 n_current += 1
 
                 # Save partition
-                if n_current == self.partition_size:
+                if n_current == partition_size:
 
-                    self._save_partition(token_matrix, tag_matrix, len_matrix,
+                    self._save_partition(form_char_matrix,
+                                         token_char_matrix,
+                                         form_len_matrix,
+                                         token_len_matrix,
+                                         token_matrix,
+                                         tag_matrix,
+                                         sentence_len_matrix,
                                          self.n_partitions)
                     self.n_partitions += 1
 
@@ -173,22 +329,36 @@ class Database:
 
                     n_current = 0
 
-                    len_matrix = self._len_matrix()
-                    token_matrix = self._token_matrix(token_language.pad_index)
+                    token_char_matrix = \
+                        self._character_matrix(
+                            partition_size, character_language.pad_index)
+                    form_char_matrix = self._character_matrix(
+                        partition_size, character_language.pad_index)
+
+                    token_len_matrix = self._len_matrix(partition_size, pad=0)
+                    form_len_matrix = self._len_matrix(partition_size, pad=0)
+
+                    token_matrix = self._token_matrix(
+                        partition_size, pad=token_language.pad_index)
                     tag_matrix = self._tag_matrix(
-                        list(l.pad_index for l in tag_languages))
+                        partition_size,
+                        pad_indices=list(l.pad_index for l in tag_languages))
+                    sentence_len_matrix = self._sentence_len_matrix(
+                        partition_size)
 
             f.close()
 
-        # Save excess sentences
+        # Remove padded non-sentences from arrays when saving
+        #   on partition breaks
         if n_current:
 
-            # Remove excess array space
-            len_matrix = len_matrix[:n_current]
-            token_matrix = token_matrix[:n_current]
-            tag_matrix = tag_matrix[:n_current]
-
-            self._save_partition(token_matrix, tag_matrix, len_matrix,
+            self._save_partition(form_char_matrix[:n_current],
+                                 token_char_matrix[:n_current],
+                                 form_len_matrix[:n_current],
+                                 token_len_matrix[:n_current],
+                                 token_matrix[:n_current],
+                                 tag_matrix[:n_current],
+                                 sentence_len_matrix[:n_current],
                                  self.n_partitions)
             self.n_partitions += 1
 
@@ -197,7 +367,8 @@ class Database:
             partition_start = partition_end
 
     def _check_partitions(self):
-
+        """Summary
+        """
         n_partitions = 0
         n_sentences = 0
         partition_lengths = []
@@ -206,64 +377,164 @@ class Database:
 
         while found:
 
-            f_token, f_tag, f_len = self._partition_file_names(n_partitions)
-            found = os.path.isfile(f_token) and os.path.isfile(f_tag) \
-                and os.path.isfile(f_len)
+            self._add_partition_file_names(n_partitions)
+            f_list = self.get_partition_files(n_partitions)
 
-            if found:
+            if f_list and \
+                    all(os.path.isfile(f_list[fn]) for fn in f_list.keys()):
 
-                len_matrix = np.load(f_len)
+                f_s_len = self.get_file(n_partitions, 'f_s_len')
 
-                n_partition = len(len_matrix)
+                sentence_len_matrix = np.load(f_s_len)
+
+                n_partition = len(sentence_len_matrix)
                 n_sentences += n_partition
                 partition_lengths.append(n_partition)
 
-                size_partition = np.sum(len_matrix)
+                size_partition = np.sum(sentence_len_matrix)
                 self.partition_sizes.append(size_partition)
 
                 n_partitions += 1
+
+            else:
+
+                found = False
+                del self.fn_dict[n_partitions]
 
         self.n_partitions = n_partitions
         self.n_sentences = n_sentences
         self.partition_lengths = partition_lengths
 
-    def _save_partition(self, token_matrix: np.ndarray,
-                        tag_matrix: np.ndarray, len_matrix: np.ndarray,
+    def _save_partition(self,
+                        form_char_matrix: np.ndarray,
+                        token_char_matrix: np.ndarray,
+                        form_len_matrix: np.ndarray,
+                        token_len_matrix: np.ndarray,
+                        token_matrix: np.ndarray,
+                        tag_matrix: np.ndarray,
+                        sentence_len_matrix: np.ndarray,
                         n: int):
+        """Summary
 
+        Args:
+            form_char_matrix (np.ndarray): Description
+            token_char_matrix (np.ndarray): Description
+            form_len_matrix (np.ndarray): Description
+            token_len_matrix (np.ndarray): Description
+            token_matrix (np.ndarray): Description
+            tag_matrix (np.ndarray): Description
+            sentence_len_matrix (np.ndarray): Description
+            n (int): Description
+        """
         if not os.path.isdir(self.partition_dir):
             util.mkdir_p(self.partition_dir)
 
-        f_token, f_tag, f_len = self._partition_file_names(n)
+        self._add_partition_file_names(n)
 
         print('Saving partition %d' % n)
+
+        f_f_char = self.get_file(n, 'f_f_char')
+        print('\tForm characters matrix file: %s' % f_f_char)
+        np.save(f_f_char, form_char_matrix)
+
+        f_t_char = self.get_file(n, 'f_t_char')
+        print('\tToken characters matrix file: %s' % f_t_char)
+        np.save(f_t_char, token_char_matrix)
+
+        f_f_len = self.get_file(n, 'f_f_len')
+        print('\tForm lengths matrix file: %s' % f_f_len)
+        np.save(f_f_len, form_len_matrix)
+
+        f_t_len = self.get_file(n, 'f_t_len')
+        print('\tToken lengths matrix file: %s' % f_t_len)
+        np.save(f_t_len, token_len_matrix)
+
+        f_token = self.get_file(n, 'f_token')
         print('\tToken matrix file: %s' % f_token)
-        print('\tTag matrix file: %s' % f_tag)
-        print('\tLength matrix file: %s\n' % f_len)
-
         np.save(f_token, token_matrix)
+
+        f_tag = self.get_file(n, 'f_tag')
+        print('\tTag matrix file: %s' % f_tag)
         np.save(f_tag, tag_matrix)
-        np.save(f_len, len_matrix)
 
-    def _partition_file_names(self, n):
+        f_s_len = self.get_file(n, 'f_s_len')
+        print('\tSentence length matrix file: %s\n' % f_s_len)
+        np.save(f_s_len, sentence_len_matrix)
 
-        f_token = os.path.join(self.partition_dir, '%s%d.npy' %
-                               (self.token_prefix, n))
-        f_tag = os.path.join(self.partition_dir, '%s%d.npy' %
-                             (self.syntactic_tag_prefix, n))
-        f_len = os.path.join(self.partition_dir, '%s%d.npy' %
-                             (self.length_prefix, n))
+    def _add_partition_file_names(self, n):
+        """Summary
 
-        return f_token, f_tag, f_len
+        Args:
+            n (TYPE): Description
+        """
+        self.fn_dict[n] = {
 
-    def iterate_partitions(self):
+            'f_f_char': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.form_char_prefix, n)),
+            'f_t_char': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.token_char_prefix, n)),
+            'f_f_len': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.form_len_prefix, n)),
+            'f_t_len': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.token_len_prefix, n)),
+            'f_token': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.token_prefix, n)),
+            'f_tag': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.syntactic_tag_prefix, n)),
+            'f_s_len': os.path.join(
+                self.partition_dir, '%s%d.npy' %
+                (self.sentence_len_prefix, n))
+        }
+
+    def get_file(self, n, fn):
+        """Summary
+
+        Args:
+            n (TYPE): Description
+            fn (TYPE): Description
+
+        Returns:
+            TYPE: Description
+        """
+        partition = self.fn_dict.get(n)
+
+        return partition.get(fn) if partition else partition
+
+    def get_partition_files(self, n):
+        """Summary
+
+        Args:
+            n (TYPE): Description
+
+        Returns:
+            TYPE: Description
+        """
+        return self.fn_dict.get(n)
+
+    def iterate_partitions(self, fn_list):
+        """Summary
+
+        Args:
+            fn_list (TYPE): Description
+
+        Yields:
+            TYPE: Description
+        """
+        for i in range(self.n_partitions):
+
+            yield tuple(np.load(self.get_file(i, fn)) for fn in fn_list)
+
+    def iterate_all_partitions(self):
+
+        fn_list = ['f_f_char', 'f_t_char', 'f_f_len', 'f_t_len',
+                   'f_token', 'f_tag', 'f_s_len']
 
         for i in range(self.n_partitions):
 
-            f_token, f_tag, f_len = self._partition_file_names(i)
-
-            token_matrix = np.load(f_token)
-            tag_matrix = np.load(f_tag)
-            len_matrix = np.load(f_len)
-
-            yield token_matrix, tag_matrix, len_matrix
+            yield tuple(np.load(self.get_file(i, fn)) for fn in fn_list)
