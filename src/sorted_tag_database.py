@@ -97,7 +97,8 @@ class SortedTagDatabase:
         n_processed = 0
 
         # Obtain unique token/tag combinations for each partition
-        for token_matrix, tag_matrix, _ in db.iterate_partitions():
+        for token_matrix, tag_matrix in db.iterate_partitions(
+                ['f_token', 'f_tag']):
 
             print('Processing partition %d...' % n_processed)
             print('\tRaw size: %d tokens' % db.partition_sizes[n_processed])

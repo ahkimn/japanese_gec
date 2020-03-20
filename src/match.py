@@ -10,7 +10,7 @@ from . import config
 from . import util
 
 from .databases import Database
-from .rules import Rule
+from .rules import Rule, CharacterRule
 from .sorted_tag_database import SortedTagDatabase
 
 from numpy.random import RandomState
@@ -21,7 +21,7 @@ cfg = config.parse()
 class TemplateMatch:
 
     def __init__(self, tokens: np.ndarray, tags: np.ndarray,
-                 lengths: np.ndarray, starts: np.ndarray,
+                 sentence_lengths: np.ndarray, starts: np.ndarray,
                  match_array=None):
 
         if match_array is not None:
@@ -32,7 +32,7 @@ class TemplateMatch:
             match_array = match_array[successes]
             self.tokens = tokens[successes]
             self.tags = tags[successes]
-            self.lengths = lengths[successes]
+            self.sentence_lengths = sentence_lengths[successes]
             self.n_sentences = self.tokens.shape[0]
 
             self._resolve_multiple_matches(match_array)
@@ -43,7 +43,7 @@ class TemplateMatch:
 
             self.tokens = tokens
             self.tags = tags
-            self.lengths = lengths
+            self.sentence_lengths = sentence_lengths
             self.starts = starts
 
             self.check_sentence_count()
@@ -68,14 +68,15 @@ class TemplateMatch:
         temp_tags = np.ndarray(
             (n_matches, self.tags.shape[1], self.tags.shape[2]),
             self.tags.dtype)
-        temp_lengths = np.ndarray((n_matches), self.lengths.dtype)
+        temp_sentence_lengths = np.ndarray(
+            (n_matches), self.sentence_lengths.dtype)
 
         # Copy data to new array
         temp_match_array[:self.n_sentences] = match_array[:]
         temp_tokens[:self.n_sentences] = self.tokens[:]
         temp_tags[:self.n_sentences] = self.tags[:]
 
-        temp_lengths[:self.n_sentences] = self.lengths[:]
+        temp_sentence_lengths[:self.n_sentences] = self.sentence_lengths[:]
 
         insert_index = self.n_sentences
 
@@ -101,7 +102,8 @@ class TemplateMatch:
                     temp_match_array[insert_index][:] = copy[:]
                     temp_tokens[insert_index][:] = self.tokens[j][:]
                     temp_tags[insert_index][:] = self.tags[j][:]
-                    temp_lengths[insert_index] = self.lengths[j]
+                    temp_sentence_lengths[insert_index] = \
+                        self.sentence_lengths[j]
 
                     n_per[j] -= 1
                     insert_index += 1
@@ -124,7 +126,7 @@ class TemplateMatch:
 
         self.tokens = temp_tokens
         self.tags = temp_tags
-        self.lengths = temp_lengths
+        self.sentence_lengths = temp_sentence_lengths
 
         self.check_sentence_count()
 
@@ -163,7 +165,7 @@ class TemplateMatch:
 
         self.tokens = self.tokens[valid]
         self.tags = self.tags[valid]
-        self.lengths = self.lengths[valid]
+        self.sentence_lengths = self.sentence_lengths[valid]
         self.starts = self.starts[valid]
 
         self.check_sentence_count()
@@ -243,7 +245,7 @@ class TemplateMatch:
 
         self.subrule_indices = list()
         self.subrule_tokens = list()
-        self.subrule_lengths = list()
+        self.subrule_sentence_lengths = list()
         self.subrule_starts = list()
 
         # Iterate through each sub-rule
@@ -254,7 +256,7 @@ class TemplateMatch:
 
             # Sentences associated with each sub-rule
             sub_rule_tokens = self.tokens[selected_indices]
-            sub_rule_lengths = self.lengths[selected_indices]
+            sub_rule_sentence_lengths = self.sentence_lengths[selected_indices]
 
             # Total number of sentences associated with each sub-rule
             n_subrule = len(sub_rule_tokens)
@@ -267,10 +269,10 @@ class TemplateMatch:
 
                 self.subrule_indices.append(selected_indices)
                 self.subrule_tokens.append(
-                    list(sub_rule_tokens[i][1:sub_rule_lengths[i]]
+                    list(sub_rule_tokens[i][1:sub_rule_sentence_lengths[i]]
                          for i in range(n_subrule)))
-                self.subrule_lengths.append(
-                    self.lengths[selected_indices].tolist())
+                self.subrule_sentence_lengths.append(
+                    self.sentence_lengths[selected_indices].tolist())
                 self.subrule_starts.append(
                     self.starts[selected_indices].tolist())
 
@@ -281,7 +283,7 @@ class TemplateMatch:
         self.n_sentences = self.tokens.shape[0]
 
         assert(self.tags.shape[0] == self.n_sentences)
-        assert(self.lengths.shape[0] == self.n_sentences)
+        assert(self.sentence_lengths.shape[0] == self.n_sentences)
         assert(self.starts.shape[0] == self.n_sentences)
 
     @classmethod
@@ -289,10 +291,12 @@ class TemplateMatch:
 
         merged_tokens = np.vstack(list(m.tokens for m in matches))
         merged_tags = np.vstack(list(m.tags for m in matches))
-        merged_lengths = np.hstack(list(m.lengths for m in matches))
+        merged_sentence_lengths = \
+            np.hstack(list(m.sentence_lengths for m in matches))
         merged_starts = np.hstack(list(m.starts for m in matches))
 
-        merged = cls(merged_tokens, merged_tags, merged_lengths, merged_starts)
+        merged = cls(merged_tokens, merged_tags,
+                     merged_sentence_lengths, merged_starts)
         merged.check_sentence_count()
 
         return merged
@@ -301,7 +305,7 @@ class TemplateMatch:
 
         self.tokens = self.tokens[permutation][:n_out]
         self.tags = self.tags[permutation][:n_out]
-        self.lengths = self.lengths[permutation][:n_out]
+        self.sentence_lengths = self.sentence_lengths[permutation][:n_out]
         self.starts = self.starts[permutation][:n_out]
 
         self.check_sentence_count()
@@ -321,6 +325,9 @@ def match_correct(rule: Rule,
     matches = \
         _find_template_sentences(rule, db, n_search, max_token,
                                  n_min_out, n_max_out, out_ratio, RS)
+
+    print("\n\tCategorizing matches into sub-rules...")
+    print(cfg['BREAK_SUBLINE'])
 
     matches.determine_subclasses(substitute_tags, rule.n_correct_tokens)
 
@@ -385,12 +392,12 @@ def _find_template_sentences(
 
     all_matches = list()
 
-    for tokens, tags, lengths in db.iterate_partitions():
+    for tokens, tags, sentence_lengths \
+            in db.iterate_partitions(['f_token', 'f_tag', 'f_s_len']):
 
-        n_partition += 1
         n_sentences = len(tokens)
 
-        print("\tProcessing partition: %d\n" % n_partition)
+        print("\tProcessing partition: %d\n" % (n_partition + 1))
 
         if n_remaining == 0:
 
@@ -402,7 +409,7 @@ def _find_template_sentences(
 
             tokens = tokens[:n_sentences]
             tags = tags[:n_sentences]
-            lengths = lengths[:n_sentences]
+            sentence_lengths = sentence_lengths[:n_sentences]
 
         n_remaining -= n_sentences
 
@@ -432,12 +439,29 @@ def _find_template_sentences(
                         tags[:, :, i], np.argwhere(index_mask == 1),
                         index_tags, rule.n_correct_tokens))
 
-        matches = TemplateMatch(tokens, tags, lengths, None, match_array)
+        if isinstance(rule, CharacterRule):
+
+            if rule.match_form:
+
+                characters = np.load(db.get_file(n_partition, 'f_f_char'))
+                lengths = np.load(db.get_file(n_partition, 'f_f_len'))
+
+            else:
+
+                characters = np.load(db.get_file(n_partition, 'f_t_char'))
+                lengths = np.load(db.get_file(n_partition, 'f_t_len'))
+
+            match_array = np.logical_and(
+                match_array, rule.match_characters(characters, lengths))
+
+        matches = TemplateMatch(
+            tokens, tags, sentence_lengths, None, match_array)
         matches.filter_valid_matches(rule.n_correct_tokens, max_token)
 
         print('\n' + cfg['BREAK_SUBLINE'])
 
         all_matches.append(matches)
+        n_partition += 1
 
     merged = TemplateMatch.merge(all_matches)
 
@@ -477,4 +501,4 @@ def _get_final_output_count(
     n_out = min(n_max_out, n_out) if n_max_out != -1 else n_out
     n_out = max(n_min_out, n_out) if n_min_out != -1 else n_out
 
-    return n_out
+    return min(n_out, n_valid)

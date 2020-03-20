@@ -17,7 +17,7 @@ CONFIG_FILE = os.path.join(PROJECT_DIR, 'config.yml')
 def parse():
 
     f_config = open(CONFIG_FILE, 'r')
-    cfg = yaml.load(f_config)
+    cfg = yaml.load(f_config, Loader=yaml.SafeLoader)
     f_config.close()
 
     return cfg
@@ -29,6 +29,7 @@ if __name__ == '__main__':
 
     cfg['directories'] = {
 
+        'const': os.path.join(PROJECT_DIR, 'data/const'),
         'data': os.path.join(PROJECT_DIR, 'data'),
         'databases': os.path.join(PROJECT_DIR, 'data/databases'),
         'languages': os.path.join(PROJECT_DIR, 'data/languages'),
@@ -61,19 +62,32 @@ if __name__ == '__main__':
         'node_index': 'ni.pkl',
         'delimiter': '。',
         'token_prefix': 't',
-        'syntactic_tag_prefix': 'st'
+        'syntactic_tag_prefix': 'st',
+        'character_prefix': 'c'
     }
 
     cfg['database_params'] = {
 
-        'length_prefix': 'l',
-        'token_prefix': 't',
+        'form_char_prefix': 'fc',
+        'form_char_len_prefix': 'fcl',
+        'max_sentence_length': 50,
+        'max_token_length': 10,
+        'partition_size': 50000,
+        'sentence_len_prefix': 'sl',
+        'sort_tag_prefix': 'stt',
+        'sort_form_prefix': 'stf',
         'syntactic_tag_prefix': 'st',
+        'token_char_prefix': 'tc',
+        'token_char_len_prefix': 'tcl',
+        'token_prefix': 't',
         'unique_token_prefix': 'ut',
         'unique_syntactic_tag_prefix': 'ust',
-        'unique_form_prefix': 'uf',
-        'sort_tag_prefix': 'stt',
-        'sort_form_prefix': 'stf'
+        'unique_form_prefix': 'uf'
+    }
+
+    cfg['morpher_params'] = {
+
+        'kana_default': 'kana.csv'
     }
 
     cfg['parser_params'] = {
