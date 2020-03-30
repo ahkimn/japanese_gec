@@ -230,6 +230,10 @@ class Morpher:
 
                     return None
 
+        else:
+
+            return None
+
         n_attempts = 0
         search_order = _get_search_order(sub_template)
 

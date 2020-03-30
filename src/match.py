@@ -10,6 +10,7 @@ from . import config
 from . import util
 
 from .databases import Database
+from .kana import KanaList
 from .rules import Rule, CharacterRule
 from .sorted_tag_database import SortedTagDatabase
 
@@ -315,7 +316,8 @@ def match_correct(rule: Rule,
                   db: Database, stdb: SortedTagDatabase,
                   max_token: int=50000, n_search: int=-1,
                   n_max_out: int=50000, n_min_out: int=5000,
-                  out_ratio: float=0.1, RS: RandomState=None):
+                  out_ratio: float=0.1, RS: RandomState=None,
+                  ):
 
     print("\tFinding potential substitute tokens...")
     print(cfg['BREAK_SUBLINE'])

@@ -1,6 +1,5 @@
 import argparse
 import os
-import shutil
 
 from src import config
 from src import databases

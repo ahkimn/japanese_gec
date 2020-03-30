@@ -37,14 +37,34 @@ if __name__ == '__main__':
         'sorted_tag_databases':
             os.path.join(PROJECT_DIR, 'data/sorted_tag_databases'),
         'source_corpora': os.path.join(PROJECT_DIR, 'data/source_corpora'),
-        'synthesized_data': 'data/synthesized'
+        'datasets': os.path.join(PROJECT_DIR, 'data/datasets'),
+        'synthesized_data': os.path.join(PROJECT_DIR, 'data/synthesized')
     }
 
     cfg['data_params'] = {
 
         'source_corpus_filetype': '.txt',
-        'paired_data_filetype': '.csv',
-        'synthesized_data_prefix': 'syn'
+    }
+
+    cfg['dataset_params'] = {
+
+        'col_correct': 'correct',
+        'col_error': 'error',
+        'col_prefix_output': 'output',
+        'col_correct_bounds': 'correct_bounds',
+        'col_error_bounds': 'error_bounds',
+        'col_subrules': 'subrules',
+        'col_rules': 'rules',
+
+        'save_names': {
+            'default_prefix': 'syn',
+            'rule_folder_prefix': '',
+            'rule_file_prefix': '',
+            'subrule_file_prefix': 'sr',
+            'correct_suffix': 'correct',
+            'error_suffix': 'error',
+            'ds_suffix': 'ds'
+        },
     }
 
     cfg['language_params'] = {
