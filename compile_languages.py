@@ -19,10 +19,11 @@ if __name__ == '__main__':
     #    Parameters for constructed source corpus
     # ====================================================
 
+    # Required
     parser.add_argument(
-        '--corpus_dir', metavar='CORPUS_DIR', default='scrape',
+        '--corpus_dir', metavar='CORPUS_DIR',
         type=str, help='sub-directory of ./data/source_corpora \
-            containing source corpus files', required=False)
+            containing source corpus files', required=True)
 
     parser.add_argument(
         '--filetype', metavar='FILE_TYPE',
@@ -47,7 +48,7 @@ if __name__ == '__main__':
             syntactic tag information', required=False)
 
     parser.add_argument(
-        '--save_dir', metavar='SAVE_DIR',
+        '--lang_save_dir', metavar='LANG_SAVE_DIR',
         type=str, help='sub-directory of ./data/languages \
             to save Language instance dictionaries', required=True)
 
@@ -81,7 +82,7 @@ if __name__ == '__main__':
     source_corpus_filetype = args.filetype
 
     language_save_dir = os.path.join(
-        DIRECTORIES['languages'], args.save_dir)
+        DIRECTORIES['languages'], args.lang_save_dir)
 
     token_prefix = args.token_prefix
     syntactic_tag_prefix = args.syntactic_tag_prefix
