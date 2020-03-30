@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 
 from src import config
 from src import databases
@@ -8,7 +9,10 @@ from src import kana
 from src import languages
 from src import match
 from src import rules
+from src import util
+
 from src.sorted_tag_database import SortedTagDatabase
+from src.util import str_bool
 
 import numpy as np
 
@@ -19,7 +23,10 @@ L_PARAMS = cfg['language_params']
 M_PARAMS = cfg['morpher_params']
 P_PARAMS = cfg['parser_params']
 DB_PARAMS = cfg['database_params']
+DS_PARAMS = cfg['dataset_params']
 DIRECTORIES = cfg['directories']
+
+SAVE_PARAMS = DS_PARAMS['save_names']
 
 if __name__ == '__main__':
 
@@ -78,10 +85,11 @@ if __name__ == '__main__':
         help='CSV file within ./data/rules containing rule information',
         required=True)
 
+    # REQUIRED
     parser.add_argument(
-        '--gen_rule', metavar='GEN_RULE', type=int, default=-1,
+        '--gen_rule', metavar='GEN_RULE', type=str, default='-1',
         help='Specific rule to generate data for. Use \'-1\'\
-            to generate using all rules', required=False)
+            to generate using all rules', required=True)
 
     # ====================================================
     #    Parameters for loaded SortedTagDatabase instance
@@ -201,19 +209,37 @@ if __name__ == '__main__':
                     list of kana', required=False)
 
     # ====================================================
-    #               Parameters for saved files
+    #          Parameters for saved Dataset files
     # ====================================================
 
     # Required
     parser.add_argument(
-        '--save_dir', metavar='SAVE_DIR',
-        type=str, help='sub-directory of ./data/synthesized \
+        '--ds_save_dir', metavar='SAVE_DIR',
+        type=str, help='sub-directory of ./data/datasets \
             to save data to', required=True)
 
+    # Required
+    parser.add_argument(
+        '--override', metavar='OVERRIDE',
+        type=str_bool, help='if True, delete files within save directory prior to \
+            data generation', required=True)
+
+    # Required
     parser.add_argument(
         '--manual_check', metavar='MANUAL_CHECK', default=False,
-        type=bool, help='if True, allow manual checking of synthesized \
-        data')
+        type=str_bool, help='if True, allow manual checking of synthesized \
+        data', required=True)
+
+    parser.add_argument(
+        '--ds_suffix', metavar='DS_SUFFIX', default=SAVE_PARAMS['ds_suffix'],
+        type=str, help='File extension of saved Dataset instances',
+        required=False)
+
+    parser.add_argument(
+        '--ds_prefix', metavar='DS_PREFIX',
+        default=SAVE_PARAMS['rule_file_prefix'], type=str,
+        help='prefix preceding rule name in filenames of saved Dataset \
+            instances. If empty string no prefix is used.', required=False)
 
     args = parser.parse_args()
 
@@ -264,12 +290,22 @@ if __name__ == '__main__':
     KL = kana.KanaList(kana_file)
 
     rl = rules.RuleList(rule_file, character_language, token_language,
-                        tag_languages, kana_list=KL)
+                        tag_languages, KL=KL)
 
     print('\nBeginning data synthesis')
     print(cfg['BREAK_LINE'])
 
     RS = np.random.RandomState(seed=0)
+
+    save_dir = os.path.join(DIRECTORIES['datasets'], args.ds_save_dir)
+    ds_suffix = args.ds_suffix
+
+    if args.override and os.path.isdir(save_dir):
+        shutil.rmtree(save_dir)
+
+    if not os.path.isdir(save_dir):
+
+        util.mkdir_p(save_dir)
 
     for rule, idx in rl.iterate_rules(args.gen_rule):
 
@@ -278,9 +314,9 @@ if __name__ == '__main__':
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
-        paired_sentences, paired_starts = \
-            generate.generate_synthetic_pairs(stdb, token_language,
-                                              tag_languages, rule, matches)
+        DS = generate.generate_synthetic_pairs(stdb, token_language,
+                                               tag_languages, rule, matches,
+                                               KL=KL)
 
         if args.manual_check:
 
@@ -289,7 +325,7 @@ if __name__ == '__main__':
 
             print('Rule: %s' % str(rule))
 
-            generate.sample_data(rule, paired_sentences, paired_starts, RS=RS)
+            DS.sample_rule_data(rule.name, RS=RS)
 
             validate = ''
 
@@ -302,8 +338,12 @@ if __name__ == '__main__':
 
                 continue
 
-        save_dir = os.path.join(DIRECTORIES['synthesized_data'], args.save_dir,
-                                rule.name)
+        ds_prefix = args.ds_prefix
+        if ds_prefix != '':
+            ds_prefix += '_'
 
-        generate.save_synthetic_sentences(
-            paired_sentences, paired_starts, save_dir, unknown=unk_token)
+        ds_save = os.path.join(save_dir, '%s%s.%s' %
+                               (ds_prefix, rule.name, args.ds_suffix))
+
+        DS.save(ds_save)
+

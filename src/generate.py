@@ -14,31 +14,38 @@ from . import config
 from . import languages
 from . import util
 
+from .datasets import Dataset
+from .kana import KanaList
 from .match import TemplateMatch
 from .rules import Rule, CharacterRule
 from .sorted_tag_database import SortedTagDatabase
 
-from termcolor import colored
 from numpy.random import RandomState
 
 cfg = config.parse()
 
 D_PARAMS = cfg['data_params']
+DS_PARAMS = cfg['dataset_params']
 
 
 def generate_synthetic_pairs(
         stdb: SortedTagDatabase, token_language: languages.Language,
         tag_languages: list, rule: Rule, matches: TemplateMatch,
-        n_sample: int=30, verbose: bool=True):
+        KL: KanaList, n_sample: int=30, verbose: bool=True):
     """
     Function to generate errored sentences from matched sentences using the
         mapping and template phrases of a given rule
     """
 
-    # Return array containing newly generated sentence pairs
-    gen_sentences = list()
-    # Return array containing start index of error in each sentence
-    gen_starts = list()
+    # Return arrays containing newly generated sentence pairs
+    gen_correct = list()
+    gen_error = list()
+    # Return array containing start/end index of correct/error phrases
+    #    in each sentence
+    gen_correct_bounds = list()
+    gen_error_bounds = list()
+    # Return array containing sub-rule of each sentence
+    gen_subrules = list()
 
     if verbose:
         print("\n\tCorrect: " + ' | '.join(rule.tokens_correct))
@@ -65,7 +72,8 @@ def generate_synthetic_pairs(
     if isinstance(rule, CharacterRule):
 
         valid_indices = rule.convert_phrases(
-            correct_token, error_token, token_language)
+            correct_token, error_token, correct_tags[:, :, -1],
+            token_language, tag_languages[-1], KL=KL)
 
     else:
 
@@ -98,9 +106,6 @@ def generate_synthetic_pairs(
             print(cfg['BREAK_HALFLINE'])
 
         sub_indices = matches.subrule_indices[i]
-
-        subrule_sentences = list()
-        subrule_starts = list()
 
         printed_in_rule = 0
 
@@ -161,11 +166,13 @@ def generate_synthetic_pairs(
 
                 s = s - t_start
 
-                subrule_starts.append([s, s + rule.n_error_tokens,
-                                       s, s + rule.n_correct_tokens])
-                subrule_sentences.append(
-                    (generated_sentence, template_sentence[t_start:t_stop]))
+                gen_error.append(generated_sentence)
+                gen_correct.append(template_sentence[t_start:t_stop])
 
+                gen_error_bounds.append([s, s + rule.n_error_tokens])
+                gen_correct_bounds.append([s, s + rule.n_correct_tokens])
+
+                gen_subrules.append(i)
                 n_generated += 1
 
             except ValueError:
@@ -180,9 +187,6 @@ def generate_synthetic_pairs(
 
                 raise
 
-        gen_sentences.append(subrule_sentences)
-        gen_starts.append(subrule_starts)
-
     if len(not_seen) > 0:
 
         print('\n\tWARNING: %d sentences not classified into sub-rule'
@@ -192,76 +196,21 @@ def generate_synthetic_pairs(
           (n_generated, n_sentences))
     print(cfg['BREAK_SUBLINE'])
 
-    return gen_sentences, gen_starts
+    assert(n_generated == len(gen_correct))
+    assert(n_generated == len(gen_error))
+    assert(n_generated == len(gen_correct_bounds))
+    assert(n_generated == len(gen_error_bounds))
+    assert(n_generated == len(gen_subrules))
 
+    data = dict()
 
-def sample_data(rule: Rule, paired_sentences: list, paired_starts: int,
-                n_per_subrule: int=5, RS: RandomState=None):
+    data[DS_PARAMS['col_correct']] = gen_correct
+    data[DS_PARAMS['col_error']] = gen_error
+    data[DS_PARAMS['col_correct_bounds']] = gen_correct_bounds
+    data[DS_PARAMS['col_error_bounds']] = gen_error_bounds
+    data[DS_PARAMS['col_subrules']] = gen_subrules
+    data[DS_PARAMS['col_rules']] = [rule.name] * n_generated
 
-    n_subrules = len(paired_sentences)
+    ds = Dataset(data=data)
 
-    for i in range(n_subrules):
-
-        print('\n\tSample sentences for sub-rule %d of %d\n'
-              % (i + 1, n_subrules))
-
-        subrule_sentences = paired_sentences[i]
-        n_subrule = len(subrule_sentences)
-        perm = np.arange(n_subrule) if RS is None \
-            else RS.permutation(n_subrule)
-
-        for j in perm[:n_per_subrule]:
-
-            pair = subrule_sentences[j]
-            starts = paired_starts[i][j]
-
-            highlighted_error = ''.join(pair[0][:starts[0]]) \
-                + colored(''.join(pair[0][starts[0]:starts[1]]), 'red') \
-                + ''.join(pair[0][starts[1]:])
-
-            highlighted_correct = ''.join(pair[1][:starts[2]]) \
-                + colored(''.join(pair[1][starts[2]:starts[3]]), 'green') \
-                + ''.join(pair[1][starts[3]:])
-
-            print('\tE: %s\n\tC: %s' %
-                  (highlighted_error, highlighted_correct))
-
-
-def save_synthetic_sentences(paired_sentences: list, paired_starts: list,
-                             save_dir: str, unknown=None):
-
-    if not os.path.isdir(save_dir):
-        util.mkdir_p(save_dir)
-
-    print("\t\tSave directory: %s" % save_dir)
-
-    # Iterate over each subrule
-    for i in range(len(paired_sentences)):
-
-        f_name = '%s%d%s' % (D_PARAMS['synthesized_data_prefix'], i,
-                             D_PARAMS['paired_data_filetype'])
-
-        with open(os.path.join(save_dir, f_name), "w+") as f:
-
-            csv_writer = csv.writer(f, delimiter=',')
-
-            n_subrule = len(paired_sentences[i])
-
-            for j in range(n_subrule):
-
-                error_sentence = paired_sentences[i][j][0]
-                correct_sentence = paired_sentences[i][j][1]
-
-                if unknown is not None and (unknown in error_sentence or
-                                            unknown in correct_sentence):
-
-                    # print('WARNING: Pair %s -> %s contains unknown tokens'
-                    #       % (error_sentence, correct_sentence))
-                    print('WARNING: Unknown Tokens')
-                    continue
-
-                csv_writer.writerow(
-                    [' '.join(error_sentence), ' '.join(correct_sentence)] +
-                    paired_starts[i][j])
-
-        f.close()
+    return ds

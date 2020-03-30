@@ -93,7 +93,8 @@ def get_files_recursive(data_dir, filetype):
 
 def last(arr, low, high, x, n):
     """
-    Recursive search function to find the last occurence of a value within a sorted array
+    Recursive search function to find the last occurence of a value within
+        a sorted array
 
     Args:
         arr (arr): Sorted array to search
@@ -110,7 +111,8 @@ def last(arr, low, high, x, n):
         # Bisect search region
         mid = low + (high - low) // 2
 
-        # If the value of x occurs at the midpoint (and the subsequent value is greater than it)
+        # If the value of x occurs at the midpoint
+        #   (and the subsequent value is greater than it)
         if (mid == n - 1 or x < arr[mid + 1]) and arr[mid] == x:
 
             return mid
@@ -140,7 +142,8 @@ def search_template(arr, indices, vals, n):
         n (int): Length of indices array
 
     Returns:
-        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+        (np.ndarray): Array containing the indices where a sequence of n values
+            starting from that index matches the template and values
     """
     ret = None
 
@@ -149,8 +152,9 @@ def search_template(arr, indices, vals, n):
         i = index[0]
         val = vals[i]
 
-        # Restrict search on array to ensure that sequence fits (i.e. search for first index match should end n-i indices before end
-        # to ensure output has length len(arr) - n + 1)
+        # Restrict search on array to ensure that sequence fits (i.e. search
+        #   for first index match should end n-i indices before end
+        #   to ensure output has length len(arr) - n + 1)
         if i != n - 1:
 
             test = (arr[:, i:-(n - i) + 1] == val)
@@ -183,7 +187,8 @@ def search_1d(arr, indices, vals, n, _len):
         n (int): Length of indices array
 
     Returns:
-        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+        (np.ndarray): Array containing the indices where a sequence of n
+            values starting from that index matches the template and values
     """
     len_template = len(vals)
     ret = np.zeros(_len - len_template + 1, dtype=np.bool)
@@ -196,7 +201,6 @@ def search_1d(arr, indices, vals, n, _len):
     return ret
 
 
-
 def search_2d(arr, vals):
     """
     Perform a rolling search, looking for a template within a given 2D-array
@@ -206,7 +210,8 @@ def search_2d(arr, vals):
         vals (np.ndarray): Values to match
 
     Returns:
-        (np.ndarray): Array containing the indices where a sequence of n values starting from that index matches the template and values
+        (np.ndarray): Array containing the indices where a sequence of n values
+            starting from that index matches the template and values
     """
     len_template = len(vals)
 
@@ -226,17 +231,22 @@ def search_2d(arr, vals):
 
 def check_matched_indices(tags, check, possible_tags):
     """
-    Determine the type of a match of part-of-speech indices where the types are defined by the possible_tags array
+    Determine the type of a match of part-of-speech indices where the types
+        are defined by the possible_tags array
 
     Args:
-        pos (np.ndarray): Matrix containing the part-of-speech values to search through
-        check (np.ndarray): Array determining which indices per row (sentence) of pos to search through
+        pos (np.ndarray): Matrix containing the part-of-speech values to
+            search through
+        check (np.ndarray): Array determining which indices per row (sentence)
+            of pos to search through
         possible_tags (arr): List of tuples containing the possible classes
 
     Returns:
         (tuple): A tuple containing the following arrays
-            matches (arr): An array of np.ndarrays masking where the matched phrases align with the each tag of possible_tags
-            counts (arr); An array containing the number of matched phrases that align with each of possible_tags
+            matches (arr): An array of np.ndarrays masking where the matched
+                phrases align with the each tag of possible_tags
+            counts (arr); An array containing the number of matched phrases
+                that align with each of possible_tags
     """
     matches = []
     counts = []
