@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Filename: parse.py
+# Filename: util.py
 # Date Created: 19/12/2019
-# Description: Helper functions
+# Description: Miscellaneous helper functions
 # Python Version: 3.7
 
 import argparse

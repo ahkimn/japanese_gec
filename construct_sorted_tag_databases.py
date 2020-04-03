@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+
+# Filename: construct_sorted_tag_databases.py
+# Date Created: 01/22/2020
+# Description: Script to construct instance of SortedTagDatabase class
+#   given a Database instance
+# Python Version: 3.7
+
 import argparse
 import os
 

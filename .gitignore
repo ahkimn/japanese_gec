@@ -1,10 +1,12 @@
 __pycache__/
 deprecated/
+data/datasets/
 data/databases/
 data/languages/
 data/sorted_tag_databases/
 data/source_corpora/
 data/synthesized/
+data/tmp/
 config.yml
 src/config.py
 

@@ -1,26 +1,20 @@
 # -*- coding: utf-8 -*-
 
 # Filename: generate.py
-# Date Created: 23/08/2018
+# Date Created: 19/12/2019
 # Description: Functions to generate parallel synthetic data
 # Python Version: 3.7
-
-import csv
-import os
 
 import numpy as np
 
 from . import config
 from . import languages
-from . import util
 
 from .datasets import Dataset
 from .kana import KanaList
 from .match import TemplateMatch
 from .rules import Rule, CharacterRule
 from .sorted_tag_database import SortedTagDatabase
-
-from numpy.random import RandomState
 
 cfg = config.parse()
 

@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+
+# Filename: construct_databases.py
+# Date Created: 09/01/2020
+# Description: Script to construct a Database class instance, given a compiled
+#   Language instance and a directory of files containing correct Japanese
+#   sentences
+# Python Version: 3.7
+
 import argparse
 import os
 import shutil
@@ -23,10 +32,11 @@ if __name__ == '__main__':
     #    Parameters for constructed source corpus files
     # ====================================================
 
+    # Required
     parser.add_argument(
-        '--corpus_dir', metavar='CORPUS_DIR', default='scrape',
+        '--corpus_dir', metavar='CORPUS_DIR',
         type=str, help='sub-directory of ./data/source_corpora \
-            containing source corpus files', required=False)
+            containing source corpus files', required=True)
 
     parser.add_argument(
         '--filetype', metavar='FILE_TYPE',

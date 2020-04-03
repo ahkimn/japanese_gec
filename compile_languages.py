@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+
+# Filename: compile_languages.py
+# Date Created: 20/12/2020
+# Description: Script to construct Language class instances for tokens
+#   and MeCab syntactic tags from a given directory containing files
+#   with correct Japanese sentences
+# Python Version: 3.7
+
 import argparse
 import os
 

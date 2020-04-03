@@ -1,3 +1,9 @@
+# Filename: test_morpher.py
+# Date Created: 25/01/2019
+# Description: Script to test basic functionality of Morpher class
+#   (excluding syntatic-tag constrained morphing)
+# Python Version: 3.7
+
 import argparse
 
 from src import morph

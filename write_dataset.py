@@ -13,7 +13,7 @@ SAVE_PARAMS = DS_PARAMS['save_names']
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Test Hiragana/Katakana List')
+    parser = argparse.ArgumentParser(description='Write output from dataset')
 
     # Required
     parser.add_argument(
@@ -27,10 +27,10 @@ if __name__ == '__main__':
         required=False)
 
     parser.add_argument(
-        '--ds_prefix', metavar='DS_PREFIX',
+        '--ds_name', metavar='DS_PREFIX',
         default=SAVE_PARAMS['rule_file_prefix'], type=str,
-        help='prefix preceding rule name in filenames of saved Dataset \
-            instances. If empty string no prefix is used.', required=False)
+        help='filename (preceding extension) of saved Dataset instance',
+        required=True)
 
     # Required
     parser.add_argument(
@@ -57,18 +57,21 @@ if __name__ == '__main__':
         help='maximum number of sentences to output per rule. If value is \
             \'-1\' all sentences of rule are outputted.', default=-1)
 
-    args = parser.parse_args()
-    ds_load_dir = os.path.join(DIRECTORIES['datasets'],
-                               args.ds_load_dir)
+    parser.add_argument(
+        '--save_prefix', metavar='SAVE_PREFIX', type=str,
+        help='prefix of saved files if no separation is used',
+        default='')
 
     args = parser.parse_args()
+    ds_load_file = os.path.join(DIRECTORIES['datasets'],
+                                args.ds_load_dir, '%s.%s' %
+                                (args.ds_name, args.ds_suffix))
 
-    DS = Dataset.merge_directory(ds_load_dir, args.ds_prefix,
-                                 args.ds_suffix)
-
+    DS = Dataset.load(ds_load_file)
     write_dir = os.path.join(DIRECTORIES['synthesized_data'],
                              args.write_dir)
 
     DS.write(write_dir, token_delimiter=args.token_delimiter,
              data_delimiter=args.data_delimiter, include_tags=[],
-             separation=args.write_separation, max_per_rule=args.max_per_rule)
+             separation=args.write_separation, max_per_rule=args.max_per_rule,
+             save_prefix=args.save_prefix)
