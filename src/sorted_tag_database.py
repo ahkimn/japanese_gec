@@ -2,7 +2,8 @@
 
 # Filename: sorted_tag_database.py
 # Date Created: 01/22/2020
-# Description: SortedTagDatabase class
+# Description: SortedTagDatabase class; acts as dictionary/lookup table
+#   for unique tokens/syntactic tags seen in a given Database class instance
 # Python Version: 3.7
 
 import numpy as np

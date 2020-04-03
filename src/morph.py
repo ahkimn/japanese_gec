@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 # Filename: morph.py
-# Date Created: 03/20/2019
-# Description: Morpher class and associated functions/helper classes
+# Date Created: 25/01/2019
+# Description: Morpher class and associated functions/helper classes;
+#   performs token-level manipulation to search for/generate tokens
+#   matching a correct-to-error template and MeCab syntactic tags
 # Python Version: 3.7
 
 from difflib import SequenceMatcher

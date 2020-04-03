@@ -526,7 +526,7 @@ class Database:
         Yields:
             TYPE: Description
         """
-        for i in range(self.n_partitions):
+        for i in range(self.n_partitions)[:1]:
 
             yield tuple(np.load(self.get_file(i, fn)) for fn in fn_list)
 

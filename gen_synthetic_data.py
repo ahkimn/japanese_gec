@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+
+# Filename: gen_synthetic_data.py
+# Date Created: 23/01/2020
+# Description: Script to generate synthesized error-correct Japanese sentence
+#   pairs given compiled Language class instances, and corresponding
+#   Database and SortedTagDatabase instances. Results are stored per-rule in
+#   separate Dataset instances in a specified folder
+# Python Version: 3.7
+
 import argparse
 import os
 import shutil
@@ -36,10 +46,11 @@ if __name__ == '__main__':
     #    Parameters for loaded source corpus files
     # ====================================================
 
+    # Required
     parser.add_argument(
-        '--corpus_dir', metavar='CORPUS_DIR', default='scrape',
+        '--corpus_dir', metavar='CORPUS_DIR',
         type=str, help='sub-directory of ./data/source_corpora \
-            containing source corpus files', required=False)
+            containing source corpus files', required=True)
 
     parser.add_argument(
         '--filetype', metavar='FILE_TYPE',

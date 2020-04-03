@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+
+# Filename: kana.py
+# Date Created: 21/03/2020
+# Description: KanaList class and associated functions; used to
+#   manipulate and transform Japanese kana
+# Python Version: 3.7
+
 import csv
 
 from . import config

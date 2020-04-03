@@ -25,6 +25,7 @@ def default_parser():
     else:
 
         parser = MeCab.Tagger()
+
     parser.parse('')
 
     return parser

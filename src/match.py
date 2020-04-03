@@ -2,7 +2,8 @@
 
 # Filename: match.py
 # Date Created: 01/02/2020
-# Description: TemplateMatch class and associated functions
+# Description: TemplateMatch class and associated functions; performs
+#   indexing operations on sentences matched by a Rule class instance
 # Python Version: 3.7
 
 import numpy as np
@@ -10,7 +11,6 @@ from . import config
 from . import util
 
 from .databases import Database
-from .kana import KanaList
 from .rules import Rule, CharacterRule
 from .sorted_tag_database import SortedTagDatabase
 
@@ -304,10 +304,12 @@ class TemplateMatch:
 
     def permute(self, permutation: np.ndarray, n_out: int):
 
-        self.tokens = self.tokens[permutation][:n_out]
-        self.tags = self.tags[permutation][:n_out]
-        self.sentence_lengths = self.sentence_lengths[permutation][:n_out]
-        self.starts = self.starts[permutation][:n_out]
+        indices = permutation[:n_out]
+
+        self.tokens = self.tokens[indices]
+        self.tags = self.tags[indices]
+        self.sentence_lengths = self.sentence_lengths[indices]
+        self.starts = self.starts[indices]
 
         self.check_sentence_count()
 
@@ -315,7 +317,7 @@ class TemplateMatch:
 def match_correct(rule: Rule,
                   db: Database, stdb: SortedTagDatabase,
                   max_token: int=50000, n_search: int=-1,
-                  n_max_out: int=50000, n_min_out: int=5000,
+                  n_max_out: int=200000, n_min_out: int=5000,
                   out_ratio: float=0.1, RS: RandomState=None,
                   ):
 
@@ -380,7 +382,7 @@ def _find_substitute_tags(rule: Rule, stdb: SortedTagDatabase,
 def _find_template_sentences(
         rule: Rule, db: Database, n_search: int, max_token: int,
         n_min_out: int, n_max_out: int, out_ratio: float,
-        RS: RandomState):
+        RS: RandomState, pre_merge_threshold: float=10):
 
     # Restrict number of sentences to search through
     if n_search == -1:
@@ -393,6 +395,17 @@ def _find_template_sentences(
     n_partition = 0
 
     all_matches = list()
+
+    if pre_merge_threshold > 1:
+
+        avg_partition_size = db.n_sentences / db.n_partitions
+        match_threshold = \
+            int((n_max_out * pre_merge_threshold) /
+                (n_search / avg_partition_size))
+
+    print('\tMaximum Pre-merge match count per partition: %d'
+          % match_threshold)
+    print(cfg['BREAK_SUBLINE'])
 
     for tokens, tags, sentence_lengths \
             in db.iterate_partitions(['f_token', 'f_tag', 'f_s_len']):
@@ -464,6 +477,13 @@ def _find_template_sentences(
 
         all_matches.append(matches)
         n_partition += 1
+
+        if matches.n_sentences > match_threshold:
+
+            perm = np.arange(matches.n_sentences) if RS is None \
+                else RS.permutation(matches.n_sentences)
+
+            matches.permute(perm, match_threshold)
 
     merged = TemplateMatch.merge(all_matches)
 

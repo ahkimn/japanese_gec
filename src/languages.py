@@ -2,7 +2,8 @@
 
 # Filename: languages.py
 # Date Created: 15/08/2018
-# Description: Language class and associated functions
+# Description: Language class and associated functions; acts
+#   as mapping between tokens parsed by MeCab and integers
 # Python Version: 3.7
 
 import os

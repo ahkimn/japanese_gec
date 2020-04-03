@@ -38,7 +38,9 @@ if __name__ == '__main__':
             os.path.join(PROJECT_DIR, 'data/sorted_tag_databases'),
         'source_corpora': os.path.join(PROJECT_DIR, 'data/source_corpora'),
         'datasets': os.path.join(PROJECT_DIR, 'data/datasets'),
-        'synthesized_data': os.path.join(PROJECT_DIR, 'data/synthesized')
+        'synthesized_data': os.path.join(PROJECT_DIR, 'data/synthesized'),
+        'tmp': os.path.join(PROJECT_DIR, 'data/tmp'),
+        'models': os.path.join(PROJECT_DIR, 'models')
     }
 
     cfg['data_params'] = {
@@ -63,7 +65,10 @@ if __name__ == '__main__':
             'subrule_file_prefix': 'sr',
             'correct_suffix': 'correct',
             'error_suffix': 'error',
-            'ds_suffix': 'ds'
+            'ds_suffix': 'ds',
+            'train_suffix': 'train',
+            'test_suffix': 'test',
+            'dev_suffix': 'dev'
         },
     }
 
@@ -84,6 +89,11 @@ if __name__ == '__main__':
         'token_prefix': 't',
         'syntactic_tag_prefix': 'st',
         'character_prefix': 'c'
+    }
+
+    cfg['model_params'] = {
+
+        'dictionary_size': 50000
     }
 
     cfg['database_params'] = {

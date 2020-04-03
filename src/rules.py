@@ -2,7 +2,8 @@
 
 # Filename: rules.py
 # Date Created: 24/12/2019
-# Description: Rule and RuleList classes
+# Description: Rule and RuleList classes; act as representations of
+#   Japanese grammatical errors and their corrections
 # Python Version: 3.7
 
 # TODO:
