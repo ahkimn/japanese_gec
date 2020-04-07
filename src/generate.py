@@ -190,21 +190,8 @@ def generate_synthetic_pairs(
           (n_generated, n_sentences))
     print(cfg['BREAK_SUBLINE'])
 
-    assert(n_generated == len(gen_correct))
-    assert(n_generated == len(gen_error))
-    assert(n_generated == len(gen_correct_bounds))
-    assert(n_generated == len(gen_error_bounds))
-    assert(n_generated == len(gen_subrules))
+    gen_rules = [rule.name] * n_generated
 
-    data = dict()
-
-    data[DS_PARAMS['col_correct']] = gen_correct
-    data[DS_PARAMS['col_error']] = gen_error
-    data[DS_PARAMS['col_correct_bounds']] = gen_correct_bounds
-    data[DS_PARAMS['col_error_bounds']] = gen_error_bounds
-    data[DS_PARAMS['col_subrules']] = gen_subrules
-    data[DS_PARAMS['col_rules']] = [rule.name] * n_generated
-
-    ds = Dataset(data=data)
-
-    return ds
+    return Dataset.import_data(gen_error, gen_correct,
+                               gen_error_bounds, gen_correct_bounds,
+                               gen_rules, gen_subrules)

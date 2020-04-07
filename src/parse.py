@@ -7,12 +7,12 @@
 
 
 import MeCab
+import re
 
 from . import config
 
 cfg = config.parse()
 P_PARAMS = cfg['parser_params']
-
 
 def default_parser():
 
@@ -78,8 +78,8 @@ def parse_full(sentence: str, parser: MeCab.Tagger,
         assert(delimiter is not None)
         sentence = sentence.replace(delimiter, '')
 
-    sentence = sentence.strip()
-    sentence = sentence.replace(' ', '')
+    whitespace = re.compile(r'/s+')
+    sentence = whitespace.sub('', sentence.strip())
 
     len_parsed = 0
 

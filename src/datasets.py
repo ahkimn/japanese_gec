@@ -14,7 +14,11 @@ from . import config
 from . import sample
 from . import util
 
-from ast import literal_eval
+from . util import str_list
+from . rules import CharacterRule, Rule, RuleList
+from . kana import KanaList
+from . sorted_tag_database import SortedTagDatabase
+
 from numpy.random import RandomState
 from termcolor import colored
 
@@ -69,6 +73,7 @@ class Dataset:
     def _get_rules(self):
 
         self.rules = np.unique(self.df[DS_PARAMS['col_rules']].values)
+        self.rule_type = type(self.rules[0])
         self.n_rules = len(self.rules)
 
         self.n_rule_sentences = []
@@ -115,7 +120,7 @@ class Dataset:
         print(cfg['BREAK_LINE'])
         print('Name | Sentence Count | Subrule Count')
 
-        for i in self.n_rules:
+        for i in range(self.n_rules):
 
             rule = self.rules[i]
             count = self.n_rule_sentences[i]
@@ -127,6 +132,7 @@ class Dataset:
 
         self._setup()
 
+        rule = self.rule_type(rule)
         assert(rule in self.rule_idx)
 
         print('Displaying subrule statistics for rule %s' % rule)
@@ -148,6 +154,11 @@ class Dataset:
                          RS: RandomState=None):
 
         self._setup()
+
+        rule = self.rule_type(rule)
+
+        if rule not in set(self.rules):
+            raise ValueError('ERROR: rule %s not found in Dataset' % rule)
 
         rule_data = self.df.loc[self.df[DS_PARAMS['col_rules']] == rule]
 
@@ -172,11 +183,12 @@ class Dataset:
 
                 data = subrule_data.iloc[j]
 
-                correct = data[DS_PARAMS['col_correct']]
-                error = data[DS_PARAMS['col_error']]
+                correct = str_list(data[DS_PARAMS['col_correct']])
+                error = str_list(data[DS_PARAMS['col_error']])
 
-                correct_bounds = data[DS_PARAMS['col_correct_bounds']]
-                error_bounds = data[DS_PARAMS['col_error_bounds']]
+                correct_bounds = str_list(
+                    data[DS_PARAMS['col_correct_bounds']])
+                error_bounds = str_list(data[DS_PARAMS['col_error_bounds']])
 
                 highlighted_error = ''.join(error[:error_bounds[0]]) \
                     + colored(''.join(error[
@@ -361,24 +373,23 @@ class Dataset:
             if separation == 'rule':
 
                 file_correct = open(os.path.join(
-                    directory, '%s_%s.%s' % (rule_prefix, rule, c_suffix)),
+                    directory, '%s%s.%s' % (rule_prefix, rule, c_suffix)),
                     'w+')
                 file_error = open(os.path.join(
-                    directory, '%s_%s.%s' % (rule_prefix, rule, e_suffix)),
+                    directory, '%s%s.%s' % (rule_prefix, rule, e_suffix)),
                     'w+')
 
             rule_folder = '%s_%s' % (rule_folder_prefix, rule)
 
             subrules = self.subrules[rule]
             n_subrules = self.n_subrules[rule]
-            subrule_counts = self.n_subrule_sentences[rule]
 
             for j in range(n_subrules):
 
                 subrule_data = rule_data.loc[
                     rule_data[DS_PARAMS['col_subrules']] == subrules[j]]
 
-                subrule_count = subrule_counts[j]
+                subrule_count = subrule_data.shape[0]
 
                 if subrule_count == 0:
 
@@ -392,25 +403,20 @@ class Dataset:
 
                     file_correct = open(os.path.join(
                         directory, rule_folder,
-                        '%s_%d.%s' % (subrule_prefix,
-                                      j + 1, c_suffix)), 'w+')
+                        '%s%d.%s' % (subrule_prefix,
+                                     j + 1, c_suffix)), 'w+')
 
                     file_correct = open(os.path.join(
                         directory, rule_folder,
-                        '%s_%d.%s' % (subrule_prefix,
-                                      j + 1, e_suffix)), 'w+')
+                        '%s%d.%s' % (subrule_prefix,
+                                     j + 1, e_suffix)), 'w+')
 
                 for k in range(subrule_count):
 
                     data = subrule_data.iloc[k]
 
-                    correct = data[DS_PARAMS['col_correct']]
-                    error = data[DS_PARAMS['col_error']]
-
-                    if isinstance(correct, str):
-                        correct = literal_eval(correct)
-                    if isinstance(error, str):
-                        error = literal_eval(error)
+                    correct = str_list(data[DS_PARAMS['col_correct']])
+                    error = str_list(data[DS_PARAMS['col_error']])
 
                     correct = token_delimiter.join(correct)
                     error = token_delimiter.join(error)
@@ -422,43 +428,6 @@ class Dataset:
                         correct_data) + os.linesep)
                     file_error.write(data_delimiter.join(
                         error_data) + os.linesep)
-
-    # def _convert_columns(self):
-
-    #     converted = False
-
-    #     print('Converting columns to correct datatypes...')
-
-    #     first = self.df.iloc[0]
-
-    #     for col_name in ['col_correct', 'col_error',
-    #                      'col_correct_bounds', 'col_error_bounds']:
-
-    #         col = DS_PARAMS[col_name]
-
-    #         if not isinstance(first[col], list):
-
-    #             print('\tConverting column: %s' % col)
-    #             self.df[col] = self.df[col].apply(literal_eval)
-    #             converted = True
-
-    #     col_rules = DS_PARAMS['col_rules']
-
-    #     if not isinstance(first[col_rules], str):
-
-    #         print('\tConverting column: %s' % col_rules)
-    #         self.df[col_rules] = self.df[col_rules].apply(str)
-    #         converted = True
-
-    #     col_subrules = DS_PARAMS['col_subrules']
-
-    #     if not isinstance(first[col_subrules], np.int64):
-
-    #         print('\tConverting column: %s' % col_subrules)
-    #         self.df[col_subrules] = self.df[col_subrules].  apply(np.int64)
-    #         converted = True
-
-    #     return converted
 
     @classmethod
     def merge(cls, file_list: list, tmp_file='df_all.csv'):
@@ -531,3 +500,63 @@ class Dataset:
         DS.save_file = filename
 
         return DS
+
+    @classmethod
+    def import_data(cls, error_sentences: list, correct_sentences: list,
+                    error_bounds: list=None, correct_bounds: list=None,
+                    rules: list=None, subrules: list=None):
+
+        assert(error_sentences is not None)
+        assert(correct_sentences is not None)
+        n_sentences = len(error_sentences)
+
+        assert(len(correct_sentences) == n_sentences)
+
+        if error_bounds is not None:
+            assert(len(error_bounds) == n_sentences)
+        else:
+            error_bounds = [''] * n_sentences
+
+        if correct_bounds is not None:
+            assert(len(correct_bounds) == n_sentences)
+        else:
+            correct_bounds = [''] * n_sentences
+
+        if rules is not None:
+            assert(len(rules) == n_sentences)
+        else:
+            rules = [''] * n_sentences
+
+        if subrules is not None:
+            assert(len(subrules) == n_sentences)
+        else:
+            subrules = [0] * n_sentences
+
+        data = dict()
+
+        data[DS_PARAMS['col_error']] = error_sentences
+        data[DS_PARAMS['col_correct']] = correct_sentences
+        data[DS_PARAMS['col_error_bounds']] = error_bounds
+        data[DS_PARAMS['col_correct_bounds']] = correct_bounds
+        data[DS_PARAMS['col_rules']] = rules
+        data[DS_PARAMS['col_subrules']] = subrules
+
+        return cls(data=data)
+
+    def classify(self, RL: RuleList, KL: KanaList, STDB: SortedTagDatabase):
+
+        self._setup()
+
+        unclassified = len(self.rules) == 1 and self.rules[0] == ''
+
+        for rule, idx in RL.iterate_rules('-1'):
+
+            if isinstance(rule, CharacterRule):
+
+            else:
+
+
+    def _translate_column():
+
+        pass
+

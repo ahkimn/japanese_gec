@@ -40,7 +40,9 @@ if __name__ == '__main__':
         'datasets': os.path.join(PROJECT_DIR, 'data/datasets'),
         'synthesized_data': os.path.join(PROJECT_DIR, 'data/synthesized'),
         'tmp': os.path.join(PROJECT_DIR, 'data/tmp'),
-        'models': os.path.join(PROJECT_DIR, 'models')
+        'models': os.path.join(PROJECT_DIR, 'models'),
+        'model_output': os.path.join(PROJECT_DIR, 'data/model_output'),
+        'test_corpora': os.path.join(PROJECT_DIR, 'data/test_corpora')
     }
 
     cfg['data_params'] = {
@@ -70,6 +72,9 @@ if __name__ == '__main__':
             'test_suffix': 'test',
             'dev_suffix': 'dev'
         },
+
+        'error_delimiters': ['<', '>'],
+        'correct_delimiters': ['(', ')']
     }
 
     cfg['language_params'] = {
@@ -93,7 +98,9 @@ if __name__ == '__main__':
 
     cfg['model_params'] = {
 
-        'dictionary_size': 50000
+        'dictionary_size': 50000,
+        'fairseq_output': 'generate-test.txt',
+        'fconv_checkpoint': 'checkpoint_best.pt',
     }
 
     cfg['database_params'] = {
@@ -159,5 +166,10 @@ if __name__ == '__main__':
     cfg['BREAK_SUBLINE'] = '\t=================\n'
     cfg['BREAK_HALFLINE'] = '\t\t=============\n'
 
+    for _, directory in cfg['directories'].items():
+        if not os.path.isdir(directory):
+            os.mkdir(directory)
+
     with open(CONFIG_FILE, 'w+') as f_config:
         yaml.dump(cfg, f_config)
+

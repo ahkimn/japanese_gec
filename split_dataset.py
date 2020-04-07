@@ -41,35 +41,42 @@ if __name__ == '__main__':
             instances to',
         required=True)
 
-    args = parser.parse_args()
-
     parser.add_argument(
         '--ds_name_train', metavar='DS_NAME_TRAIN', type=str,
-        default='%s_%s' % (args.ds_name, SAVE_PARAMS['train_suffix']),
+        default='%s_%s' % (SAVE_PARAMS['default_prefix'],
+                           SAVE_PARAMS['train_suffix']),
         help='filename of split Dataset instance containing training data',
         required=False)
 
     parser.add_argument(
         '--ds_name_dev', metavar='DS_NAME_DEV', type=str,
-        default='%s_%s' % (args.ds_name, SAVE_PARAMS['dev_suffix']),
+        default='%s_%s' % (SAVE_PARAMS['default_prefix'],
+                           SAVE_PARAMS['dev_suffix']),
         help='filename of split Dataset instance containing development data',
         required=False)
 
     parser.add_argument(
         '--ds_name_test', metavar='DS_NAME_TEST', type=str,
-        default='%s_%s' % (args.ds_name, SAVE_PARAMS['test_suffix']),
+        default='%s_%s' % (SAVE_PARAMS['default_prefix'],
+                           SAVE_PARAMS['test_suffix']),
         help='filename of split Dataset instance containing testing data',
         required=False)
 
     parser.add_argument(
         '--ds_split_train', metavar='DS_SPLIT_TRAIN', type=float,
         default=0.90, help='percentage of sampled data given to Dataset \
-            instance containing training data')
+            instance containing training data', required=False)
 
     parser.add_argument(
         '--ds_split_dev', metavar='DS_SPLIT_DEV', type=float,
         default=0.05, help='percentage of sampled data given to Dataset \
-            instance containing validation data')
+            instance containing validation data', required=False)
+
+    parser.add_argument(
+        '--max_per_rule', metavar='MAX_PER_RULE', type=float,
+        default=50000, help='maximum number of pairs to sample per each \
+            rule in the dataset (total over train/dev/test sets',
+        required=False)
 
     args = parser.parse_args()
     ds_load_path = os.path.join(DIRECTORIES['datasets'],
@@ -104,7 +111,8 @@ if __name__ == '__main__':
     DS = Dataset.load(ds_load_path)
 
     DS_train, DS_dev, DS_test = \
-        DS.split(args.ds_split_train, args.ds_split_dev)
+        DS.split(args.ds_split_train, args.ds_split_dev,
+                 max_per_rule=args.max_per_rule)
 
     DS_train.save(ds_save_train)
     DS_dev.save(ds_save_dev)
