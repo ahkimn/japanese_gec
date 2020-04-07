@@ -604,7 +604,7 @@ class CharacterRule(Rule):
 
                     correct = correct_token
                     c_off = 0
-                    e_off = len(correct)
+                    e_off = 0
 
                 align_offset = self.left_offset
 

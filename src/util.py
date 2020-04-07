@@ -6,6 +6,7 @@
 # Python Version: 3.7
 
 import argparse
+from ast import literal_eval
 import errno
 import numpy as np
 import os
@@ -17,6 +18,46 @@ from . import config
 cfg = config.parse()
 seed = cfg['seed']
 RS = np.random.RandomState(seed)
+
+
+def literal_str(_str):
+
+    if isinstance(_str, str):
+
+        if _str == '\\s':
+
+            return ' '
+
+        elif _str == '\\t':
+
+            return '\t'
+
+        elif _str == '\\n':
+
+            return '\n'
+
+        else:
+
+            return _str
+
+    else:
+
+        raise ValueError('String expected')
+
+
+def str_list(_str):
+
+    if isinstance(_str, list):
+
+        return _str
+
+    elif isinstance(_str, str):
+
+        return literal_eval(_str)
+
+    else:
+
+        raise ValueError('String or list expected')
 
 
 def str_bool(_str: str):

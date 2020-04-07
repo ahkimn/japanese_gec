@@ -51,7 +51,7 @@ def balanced_subrule_sample(subrule_counts: list, max_total: int=-1,
     while sum(sample_counts) < max_total:
 
         # Recalculate remaining number of pairs to sample
-        remainder = max_total - sum(sample_counts)
+        remainder = int(max_total - sum(sample_counts))
 
         # Check if it is possible to sample from all remaining sub-rules
         if remainder >= len(available_subrules):
@@ -171,7 +171,7 @@ def balanced_rule_sample(rule_names: list, rule_counts: list,
     return sample_counts
 
 
-def linear_sampler(count, floor, ratio=0.25):
+def linear_sampler(count, floor, ratio=0.1):
 
     if count < floor:
 

@@ -357,4 +357,3 @@ if __name__ == '__main__':
                                (ds_prefix, rule.name, args.ds_suffix))
 
         DS.save(ds_save)
-

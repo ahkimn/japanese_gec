@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+import shutil
 
 from src import config
 from src import util
@@ -21,41 +22,49 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train model given \
             train/dev/test Dataset instances')
 
-    # Required
+    # ====================================================
+    #    Parameters for loaded Dataset instances
+    # ====================================================
+
+    # Required for write/preprocess
     parser.add_argument(
         '--ds_load_dir', metavar='DS_LOAD_DIR',
         type=str, help='sub-directory of ./data/datasets \
-            where Dataset instances are saved', required=True)
+            where Dataset instances are saved', required=False, default=None)
 
     parser.add_argument(
         '--ds_suffix', metavar='DS_SUFFIX', default=SAVE_PARAMS['ds_suffix'],
         type=str, help='File extension of saved Dataset instances',
         required=False)
 
-    # Required
+    # Required for write/preprocess
     parser.add_argument(
         '--ds_name_train', metavar='DS_NAME_TRAIN', type=str,
         help='filename (preceding extension) of saved Dataset instance \
             containing training data',
-        required=True)
+        required=False, default=None)
 
-    # Required
+    # Required for write/preprocess
     parser.add_argument(
         '--ds_name_dev', metavar='DS_NAME_DEV', type=str,
         help='filename (preceding extension) of saved Dataset instance \
             containing development data',
-        required=True)
+        required=False, default=None)
 
-    # Required
+    # Required for write/preprocess
     parser.add_argument(
         '--ds_name_test', metavar='DS_NAME_TRAIN', type=str,
         help='filename (preceding extension) of saved Dataset instance \
             containing test data',
-        required=True)
+        required=False, default=None)
+
+    # ====================================================
+    #         Parameters for model/model training
+    # ====================================================
 
     parser.add_argument(
-        '--tmp_dir', metavar='TMP_DIR', type=str, default=DIRECTORIES['tmp'],
-        help='sub-directory of (./data/tmp/) to write temporary files to',
+        '--cuda', metavar='CUDA', default=-1, type=int,
+        help='if not -1, index of GPU to use',
         required=False)
 
     parser.add_argument(
@@ -69,17 +78,6 @@ if __name__ == '__main__':
             floating point values for training', required=False)
 
     parser.add_argument(
-        '--command', metavar='COMMAND', type=str,
-        help='one of [\'write\', \'preprocess\', \
-            \'train\', or \'all\']. Determines which operation to run',
-        required=True)
-
-    parser.add_argument(
-        '--cuda', metavar='CUDA', default=-1, type=int,
-        help='if not -1, index of GPU to use',
-        required=False)
-
-    parser.add_argument(
         '--model-save_dir', metavar='MODEL_SAVE_DIR', type=str,
         default='mdl',
         help='sub-directory of \'./models\' to save model to',
@@ -90,20 +88,54 @@ if __name__ == '__main__':
         help='architecture of model (registered in Fairseq) to use',
         default='fconv_jp_current', required=False)
 
-    args = parser.parse_args()
+    parser.add_argument(
+        '--batch_size', metavar='BATCH_SIZE', default=32, type=str,
+        help='batch size to use when training', required=False)
 
+    # ====================================================
+    #               Other parameters
+    # ====================================================
+
+    parser.add_argument(
+        '--tmp_dir', metavar='TMP_DIR', type=str, default=DIRECTORIES['tmp'],
+        help='sub-directory of (./data/tmp/) to write temporary files to',
+        required=False)
+
+    parser.add_argument(
+        '--command', metavar='COMMAND', type=str,
+        help='one of [\'write\', \'preprocess\', \'train\', \'clean\', \
+            or \'all\']. Determines which operation to run',
+        required=True)
+
+    args = parser.parse_args()
     command = args.command.lower()
 
-    assert(command in ['write', 'preprocess', 'train', 'all'])
+    assert(command in ['write', 'preprocess', 'train', 'clean', 'all'])
     tmp_dir = args.tmp_dir
+
+    write_dir = os.path.join(tmp_dir, 'write')
+    prep_dir = os.path.join(tmp_dir, 'preprocess')
+
+    model_save_dir = os.path.join(DIRECTORIES['models'],
+                                  args.model_save_dir)
 
     if not os.path.isdir(tmp_dir):
         util.mkdir_p(tmp_dir)
 
-    f_names = [args.ds_name_train, args.ds_name_dev, args.ds_name_test]
-    w_names = [os.path.join(tmp_dir, f) for f in f_names]
+    ds_specified = all([args.ds_load_dir, args.ds_name_train,
+                        args.ds_name_dev, args.ds_name_test])
+
+    if ds_specified:
+
+        f_names = [args.ds_name_train, args.ds_name_dev, args.ds_name_test]
+        w_names = [os.path.join(write_dir, f) for f in f_names]
 
     if command == 'write' or command == 'all':
+
+        assert(ds_specified)
+
+        if not os.path.isdir(write_dir):
+            util.mkdir_p(write_dir)
 
         for f in f_names:
             ds_load_file = os.path.join(DIRECTORIES['datasets'],
@@ -113,11 +145,16 @@ if __name__ == '__main__':
             print('Loading dataset: %s' % ds_load_file)
 
             DS = Dataset.load(ds_load_file)
-            DS.write(tmp_dir, token_delimiter=' ', data_delimiter='',
+            DS.write(write_dir, token_delimiter=' ', data_delimiter='',
                      include_tags=[], separation='none', max_per_rule=-1,
                      save_prefix=f)
 
     if command == 'preprocess' or command == 'all':
+
+        assert(ds_specified)
+
+        if os.path.isdir(prep_dir):
+            shutil.rmtree(prep_dir)
 
         prep = subprocess.Popen(
             ['fairseq-preprocess',
@@ -126,33 +163,77 @@ if __name__ == '__main__':
              '--trainpref', w_names[0],
              '--validpref', w_names[1],
              '--testpref', w_names[2],
-             '--destdir', tmp_dir,
+             '--destdir', prep_dir,
              '--workers', str(4)],
             stdout=subprocess.PIPE)
+
         output = prep.communicate()[0]
 
     if command == 'train' or command == 'all':
 
-        model_save_dir = os.path.join(DIRECTORIES['models'],
-                                      args.model_save_dir)
+        if os.path.isdir(model_save_dir):
 
-        t_args = ['fairseq-train', tmp_dir,
+            print('WARNING: Model directory exists')
+            dec = input('\tDelete model_dir (y/n)?:')
+            if dec.lower == 'y':
+                shutil.rmtree(model_save_dir)
+            else:
+                raise ValueError('Model directory not empty')
+
+        t_args = ['fairseq-train', prep_dir,
                   '--lr', str(0.1),
                   '--clip-norm', str(0.1),
                   '--dropout', str(0.1),
                   '--max-tokens', str(args.n_words_model),
                   '--save-dir', model_save_dir,
-                  '--batch-size', str(64),
+                  '--batch-size', args.batch_size,
                   '--arch', args.model_arch]
 
         if args.cuda != -1:
             os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
+            os.environ['KMP_INIT_AT_FORK'] = 'FALSE'
 
         if args.fp16:
             t_args.append('--fp16')
 
-        print(t_args)
-
         train = subprocess.Popen(t_args,
                                  stdout=subprocess.PIPE)
+
         output = train.communicate()[0]
+
+    # Clean tmp/model directories, move dicts to model directory
+    if command == 'clean':
+
+        assert(os.path.isdir(model_save_dir))
+        assert(os.path.isdir(prep_dir))
+
+        dict_source = 'dict.%s.txt' % SAVE_PARAMS['error_suffix']
+        dict_target = 'dict.%s.txt' % SAVE_PARAMS['correct_suffix']
+
+        model_best = 'checkpoint_best.pt'
+
+        prep_dir_files = os.listdir(prep_dir)
+        model_dir_files = os.listdir(model_save_dir)
+
+        assert(dict_source in prep_dir_files)
+        assert(dict_target in prep_dir_files)
+        assert(model_best in model_dir_files)
+
+        new_dict_source = os.path.join(model_save_dir, dict_source)
+        new_dict_target = os.path.join(model_save_dir, dict_target)
+
+        dict_source = os.path.join(prep_dir, dict_source)
+        dict_target = os.path.join(prep_dir, dict_target)
+
+        # Delete non-best checkpoints
+        for f in os.listdir(model_save_dir):
+
+            if f not in [model_best, dict_source, dict_target]:
+                f = os.path.join(model_save_dir, f)
+                os.remove(f)
+
+        shutil.copyfile(dict_source, new_dict_source)
+        shutil.copyfile(dict_target, new_dict_target)
+
+        # Remove tmemporary directory
+        shutil.rmtree(tmp_dir)
