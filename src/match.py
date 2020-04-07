@@ -23,7 +23,7 @@ class TemplateMatch:
 
     def __init__(self, tokens: np.ndarray, tags: np.ndarray,
                  sentence_lengths: np.ndarray, starts: np.ndarray,
-                 match_array=None):
+                 match_indices: np.ndarray, match_array=None):
 
         if match_array is not None:
 
@@ -34,6 +34,7 @@ class TemplateMatch:
             self.tokens = tokens[successes]
             self.tags = tags[successes]
             self.sentence_lengths = sentence_lengths[successes]
+            self.match_indices = match_indices[successes]
             self.n_sentences = self.tokens.shape[0]
 
             self._resolve_multiple_matches(match_array)
@@ -46,8 +47,11 @@ class TemplateMatch:
             self.tags = tags
             self.sentence_lengths = sentence_lengths
             self.starts = starts
+            self.match_indices = match_indices
 
             self.check_sentence_count()
+
+        print(self.match_indices)
 
     def _resolve_multiple_matches(self, match_array: np.ndarray):
 
@@ -71,6 +75,8 @@ class TemplateMatch:
             self.tags.dtype)
         temp_sentence_lengths = np.ndarray(
             (n_matches), self.sentence_lengths.dtype)
+        temp_indices = np.ndarray(
+            (n_matches), self.match_indices.dtype)
 
         # Copy data to new array
         temp_match_array[:self.n_sentences] = match_array[:]
@@ -78,6 +84,7 @@ class TemplateMatch:
         temp_tags[:self.n_sentences] = self.tags[:]
 
         temp_sentence_lengths[:self.n_sentences] = self.sentence_lengths[:]
+        temp_indices[:self.n_sentences] = self.match_indices[:]
 
         insert_index = self.n_sentences
 
@@ -105,6 +112,7 @@ class TemplateMatch:
                     temp_tags[insert_index][:] = self.tags[j][:]
                     temp_sentence_lengths[insert_index] = \
                         self.sentence_lengths[j]
+                    temp_indices[insert_index] = self.match_indices[j]
 
                     n_per[j] -= 1
                     insert_index += 1
@@ -128,6 +136,7 @@ class TemplateMatch:
         self.tokens = temp_tokens
         self.tags = temp_tags
         self.sentence_lengths = temp_sentence_lengths
+        self.match_indices = temp_indices
 
         self.check_sentence_count()
 
@@ -168,6 +177,7 @@ class TemplateMatch:
         self.tags = self.tags[valid]
         self.sentence_lengths = self.sentence_lengths[valid]
         self.starts = self.starts[valid]
+        self.match_indices = self.match_indices[valid]
 
         self.check_sentence_count()
 
@@ -286,6 +296,7 @@ class TemplateMatch:
         assert(self.tags.shape[0] == self.n_sentences)
         assert(self.sentence_lengths.shape[0] == self.n_sentences)
         assert(self.starts.shape[0] == self.n_sentences)
+        assert(self.match_indices.shape[0] == self.n_sentences)
 
     @classmethod
     def merge(cls, matches: list):
@@ -295,9 +306,12 @@ class TemplateMatch:
         merged_sentence_lengths = \
             np.hstack(list(m.sentence_lengths for m in matches))
         merged_starts = np.hstack(list(m.starts for m in matches))
+        merged_match_indices = \
+            np.hstack(list(m.match_indices for m in matches))
 
         merged = cls(merged_tokens, merged_tags,
-                     merged_sentence_lengths, merged_starts)
+                     merged_sentence_lengths, merged_starts,
+                     merged_match_indices)
         merged.check_sentence_count()
 
         return merged
@@ -310,6 +324,7 @@ class TemplateMatch:
         self.tags = self.tags[indices]
         self.sentence_lengths = self.sentence_lengths[indices]
         self.starts = self.starts[indices]
+        self.match_indices = self.match_indices[indices]
 
         self.check_sentence_count()
 
@@ -393,6 +408,7 @@ def _find_template_sentences(
 
     n_remaining = n_search
     n_partition = 0
+    n_offset = 0
 
     all_matches = list()
 
@@ -411,6 +427,7 @@ def _find_template_sentences(
             in db.iterate_partitions(['f_token', 'f_tag', 'f_s_len']):
 
         n_sentences = len(tokens)
+        db_indices = np.arange(n_offset, n_offset + n_sentences)
 
         print("\tProcessing partition: %d\n" % (n_partition + 1))
 
@@ -470,7 +487,8 @@ def _find_template_sentences(
                 match_array, rule.match_characters(characters, lengths))
 
         matches = TemplateMatch(
-            tokens, tags, sentence_lengths, None, match_array)
+            tokens, tags, sentence_lengths, None, db_indices,
+            match_array=match_array)
         matches.filter_valid_matches(rule.n_correct_tokens, max_token)
 
         print('\n' + cfg['BREAK_SUBLINE'])
@@ -484,6 +502,8 @@ def _find_template_sentences(
                 else RS.permutation(matches.n_sentences)
 
             matches.permute(perm, match_threshold)
+
+        n_offset += n_sentences
 
     merged = TemplateMatch.merge(all_matches)
 

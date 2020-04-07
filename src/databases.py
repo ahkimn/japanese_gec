@@ -9,10 +9,11 @@ import numpy as np
 import os
 import time
 
-from . import languages
 from . import config
 from . import parse
 from . import util
+
+from . languages import Language
 
 cfg = config.parse()
 
@@ -46,17 +47,18 @@ class Database:
         token_prefix (TYPE): Description
     """
 
-    def __init__(self,
-                 form_char_prefix: str,
-                 form_char_len_prefix: str,
-                 max_sentence_length: int,
-                 max_token_length: int,
-                 sentence_len_prefix: str,
-                 syntactic_tag_prefix: str,
-                 token_char_prefix: str,
-                 token_char_len_prefix: str,
-                 token_prefix: str,
-                 partition_dir: str):
+    def __init__(
+        self, partition_dir: str,
+        form_char_prefix: str=DB_PARAMS['form_char_prefix'],
+        form_char_len_prefix: str=DB_PARAMS['form_char_len_prefix'],
+        max_sentence_length: int=DB_PARAMS['max_sentence_length'],
+        max_token_length: int=DB_PARAMS['max_token_length'],
+        sentence_len_prefix: str=DB_PARAMS['sentence_len_prefix'],
+        syntactic_tag_prefix: str=DB_PARAMS['syntactic_tag_prefix'],
+        token_char_prefix: str=DB_PARAMS['token_char_prefix'],
+        token_char_len_prefix: str=DB_PARAMS['token_char_len_prefix'],
+        token_prefix: str=DB_PARAMS['token_prefix'],
+    ):
         """Summary
 
         Args:
@@ -91,11 +93,13 @@ class Database:
         self.partition_lengths = []
         self.partition_sizes = []
 
-        self.matrix_dict = {}
-        self.fn_dict = {}
+        self.m_dict = dict()
+        self.has_partition_matrices = False
+
+        self.fn_dict = dict()
         self._check_partitions()
 
-    def _character_matrix(self, size, pad: int):
+    def _character_matrix(self, size: int, pad: int):
         """Summary
 
         Args:
@@ -110,7 +114,7 @@ class Database:
                         self.max_token_length),
                        pad, dtype='uint32')
 
-    def _len_matrix(self, size, pad: int):
+    def _len_matrix(self, size: int, pad: int):
         """Summary
 
         Args:
@@ -124,7 +128,7 @@ class Database:
                         self.max_sentence_length + 2),
                        pad, dtype='uint8')
 
-    def _sentence_len_matrix(self, size):
+    def _sentence_len_matrix(self, size: int):
         """Summary
 
         Args:
@@ -135,7 +139,7 @@ class Database:
         """
         return np.zeros(size, dtype='uint8')
 
-    def _tag_matrix(self, size, pad_indices: list):
+    def _tag_matrix(self, size: int, pad_indices: list):
         """Summary
 
         Args:
@@ -156,7 +160,7 @@ class Database:
 
         return mat
 
-    def _token_matrix(self, size, pad: int):
+    def _token_matrix(self, size: int, pad: int):
         """Summary
 
         Args:
@@ -170,19 +174,183 @@ class Database:
                         self.max_sentence_length + 2),
                        pad, dtype='uint32')
 
+    def _get_matrix_dict(
+            self, partition_size: int, character_language: Language,
+            token_language: Language, tag_languages: list):
+
+        self.m_dict['token'] = self._token_matrix(
+            partition_size, pad=token_language.pad_index)
+        self.m_dict['tag'] = self._tag_matrix(
+            partition_size,
+            pad_indices=list(l.pad_index for l in tag_languages))
+        self.m_dict['sentence_len'] = self._sentence_len_matrix(
+            partition_size)
+
+        self.m_dict['token_char'] = \
+            self._character_matrix(
+                partition_size, character_language.pad_index)
+        self.m_dict['form_char'] = self._character_matrix(
+            partition_size, character_language.pad_index)
+
+        self.m_dict['token_len'] = self._len_matrix(
+            partition_size, pad=0)
+        self.m_dict['form_len'] = self._len_matrix(
+            partition_size, pad=0)
+
+        self.has_partition_matrices = True
+
+    def _reset_matrix_dict(self):
+
+        self.m_dict.clear()
+        self.has_partition_matrices = False
+
+    def add_sentences(
+            self, sentences: list, character_language: Language,
+            token_language: Language, tag_languages: list,
+            partition_size: int=50000, n_start: int=0,
+            partition_start: float=None, unique_sentences: set=set(),
+            force_save: bool=False, allow_duplicates: bool=False,
+            remove_delimiter: bool=True):
+
+        if partition_start is None:
+            partition_start = time.time()
+
+        delimiter = P_PARAMS['delimiter']
+        parser = parse.default_parser()
+
+        n_offset = n_start
+
+        if not self.has_partition_matrices:
+            self._get_matrix_dict(partition_size, character_language,
+                                  token_language, tag_languages)
+
+        for i in range(len(sentences)):
+
+            sentence = sentences[i]
+
+            # Skip previously seen sentences
+            if not allow_duplicates and sentence in unique_sentences:
+                continue
+
+            tokens, tags = parse.parse_full(
+                sentence, parser, remove_delimiter=remove_delimiter,
+                delimiter=delimiter)
+
+            token_indices = token_language.parse_nodes(tokens)
+            n_tokens = len(token_indices)
+
+            # Skip sentences exceeding maximum length
+            if n_tokens > self.max_sentence_length:
+                continue
+
+            unique_sentences.add(sentence)
+
+            # Add SOS token and then copy token index values
+            self.m_dict['token'][n_offset, 0] = \
+                token_language.start_index
+            self.m_dict['token'][n_offset, 1:1 + n_tokens] = \
+                token_indices[:]
+            self.m_dict['token'][n_offset, 1 + n_tokens] = \
+                token_language.stop_index
+
+            # Copy syntactic tag indices to tag matrix to each
+            #   slice of tag_matrix
+            for j in range(len(tag_languages)):
+
+                tag_indices = tag_languages[j].parse_nodes(tags[j])
+
+                self.m_dict['tag'][n_offset, 0, j] = \
+                    tag_languages[j].start_index
+                self.m_dict['tag'][n_offset, 1:1 + n_tokens, j] = \
+                    tag_indices[:]
+                self.m_dict['tag'][n_offset, 1 + n_tokens, j] = \
+                    tag_languages[j].stop_index
+
+            # Add length of current sentence
+            self.m_dict['sentence_len'][n_offset] = n_tokens
+
+            forms = tags[-1]
+            form_lengths = list(len(f) for f in forms)
+            token_lengths = list(len(t) for t in tokens)
+
+            self.m_dict['form_len'][n_offset, 1:1 + n_tokens] = \
+                form_lengths
+            self.m_dict['token_len'][n_offset, 1:1 + n_tokens] = \
+                token_lengths
+
+            for j in range(n_tokens):
+
+                form = forms[j]
+                token = tokens[j]
+
+                n_char_form = form_lengths[j]
+                n_char_token = token_lengths[j]
+
+                if n_char_form > self.max_token_length:
+
+                    self.m_dict['form_len'][n_offset, j + 1] = 0
+
+                else:
+
+                    self.m_dict['form_char'][n_offset, j + 1, :n_char_form] = \
+                        character_language.parse_nodes(form)
+
+                if n_char_token > self.max_token_length:
+
+                    self.m_dict['token_len'][n_offset, j + 1] = 0
+
+                else:
+
+                    self.m_dict['token_char'][n_offset, j + 1, :n_char_token] = \
+                        character_language.parse_nodes(token)
+
+            self.n_sentences += 1
+            n_offset += 1
+
+            # Save partition
+            if n_offset == partition_size:
+
+                self._save_partition(self.n_partitions, last=partition_size)
+                self._reset_matrix_dict()
+                self.n_partitions += 1
+
+                partition_end = time.time()
+                print('\tTime elapsed: %4f' %
+                      (partition_end - partition_start))
+                partition_start = partition_end
+
+                n_offset = 0
+
+                self._get_matrix_dict(partition_size, character_language,
+                                      token_language, tag_languages)
+
+        # Remove padded non-sentences from arrays when saving
+        #   on partition breaks
+        if n_offset and force_save:
+
+            self._save_partition(self.n_partitions, last=n_offset)
+            self._reset_matrix_dict()
+            self.n_partitions += 1
+
+            partition_end = time.time()
+            print('\tTime elapsed: %4f' % (partition_end - partition_start))
+            partition_start = partition_end
+
+        return n_offset, partition_start, unique_sentences
+
     def construct(self,
-                  character_language: languages.Language,
-                  token_language: languages.Language,
-                  tag_languages: languages.Language,
+                  character_language: Language,
+                  token_language: Language,
+                  tag_languages: list,
                   source_corpus_dir: str,
                   source_corpus_filetype: str,
                   n_files: int=-1,
                   partition_size: int=50000):
         """
         Args:
-            character_language (languages.Language): Description
-            token_language (languages.Language): Description
-            tag_languages (languages.Language): Description
+            character_language (Language): Description
+            token_language (Language): Description
+            tag_languages (Language): Description
             source_corpus_dir (str): Description
             source_corpus_filetype (str): Description
             n_files (int, optional): Description
@@ -192,27 +360,8 @@ class Database:
             source_corpus_dir,
             source_corpus_filetype)
 
-        delimiter = P_PARAMS['delimiter']
-        parser = parse.default_parser()
-
         n_files_processed = 0
-        n_current = 0
-
-        token_matrix = self._token_matrix(
-            partition_size, pad=token_language.pad_index)
-        tag_matrix = self._tag_matrix(
-            partition_size,
-            pad_indices=list(l.pad_index for l in tag_languages))
-        sentence_len_matrix = self._sentence_len_matrix(partition_size)
-
-        token_char_matrix = \
-            self._character_matrix(
-                partition_size, character_language.pad_index)
-        form_char_matrix = self._character_matrix(
-            partition_size, character_language.pad_index)
-
-        token_len_matrix = self._len_matrix(partition_size, pad=0)
-        form_len_matrix = self._len_matrix(partition_size, pad=0)
+        n_offset = 0
 
         partition_start = time.time()
 
@@ -231,140 +380,14 @@ class Database:
 
             sentences = f.readlines()
 
-            for i in range(len(sentences)):
+            force_save = (n_files_processed == n_files)
 
-                sentence = sentences[i]
-
-                # Skip previously seen sentences
-                if sentence in unique_sentences:
-                    continue
-
-                tokens, tags = parse.parse_full(
-                    sentence, parser, remove_delimiter=True,
-                    delimiter=delimiter)
-
-                token_indices = token_language.parse_nodes(tokens)
-                n_tokens = len(token_indices)
-
-                # Skip sentences exceeding maximum length
-                if n_tokens > self.max_sentence_length:
-                    continue
-
-                unique_sentences.add(sentence)
-
-                # Add SOS token and then copy token index values
-                token_matrix[n_current, 0] = token_language.start_index
-                token_matrix[n_current, 1:1 + n_tokens] = token_indices[:]
-                token_matrix[n_current, 1 + n_tokens] = \
-                    token_language.stop_index
-
-                # Copy syntactic tag indices to tag matrix to each
-                #   slice of tag_matrix
-                for j in range(len(tag_languages)):
-
-                    tag_indices = tag_languages[j].parse_nodes(tags[j])
-
-                    tag_matrix[n_current, 0,
-                               j] = tag_languages[j].start_index
-                    tag_matrix[n_current, 1:1 + n_tokens, j] = tag_indices[:]
-                    tag_matrix[n_current, 1 + n_tokens, j] = \
-                        tag_languages[j].stop_index
-
-                # Add length of current sentence
-                sentence_len_matrix[n_current] = n_tokens
-
-                forms = tags[-1]
-                form_lengths = list(len(f) for f in forms)
-                token_lengths = list(len(t) for t in tokens)
-
-                form_len_matrix[n_current, 1:1 + n_tokens] = form_lengths
-                token_len_matrix[n_current, 1:1 + n_tokens] = token_lengths
-
-                for j in range(n_tokens):
-
-                    form = forms[j]
-                    token = tokens[j]
-
-                    n_char_form = form_lengths[j]
-                    n_char_token = token_lengths[j]
-
-                    if n_char_form > self.max_token_length:
-
-                        form_len_matrix[n_current, j + 1] = 0
-
-                    else:
-
-                        form_char_matrix[n_current, j + 1, :n_char_form] = \
-                            character_language.parse_nodes(form)
-
-                    if n_char_token > self.max_token_length:
-
-                        token_len_matrix[n_current, j + 1] = 0
-
-                    else:
-
-                        token_char_matrix[n_current, j + 1, :n_char_token] = \
-                            character_language.parse_nodes(token)
-
-                self.n_sentences += 1
-                n_current += 1
-
-                # Save partition
-                if n_current == partition_size:
-
-                    self._save_partition(form_char_matrix,
-                                         token_char_matrix,
-                                         form_len_matrix,
-                                         token_len_matrix,
-                                         token_matrix,
-                                         tag_matrix,
-                                         sentence_len_matrix,
-                                         self.n_partitions)
-                    self.n_partitions += 1
-
-                    partition_end = time.time()
-                    print('\tTime elapsed: %4f' %
-                          (partition_end - partition_start))
-                    partition_start = partition_end
-
-                    n_current = 0
-
-                    token_char_matrix = \
-                        self._character_matrix(
-                            partition_size, character_language.pad_index)
-                    form_char_matrix = self._character_matrix(
-                        partition_size, character_language.pad_index)
-
-                    token_len_matrix = self._len_matrix(partition_size, pad=0)
-                    form_len_matrix = self._len_matrix(partition_size, pad=0)
-
-                    token_matrix = self._token_matrix(
-                        partition_size, pad=token_language.pad_index)
-                    tag_matrix = self._tag_matrix(
-                        partition_size,
-                        pad_indices=list(l.pad_index for l in tag_languages))
-                    sentence_len_matrix = self._sentence_len_matrix(
-                        partition_size)
+            n_offset, partition_start, unique_sentences = self.add_sentences(
+                sentences, character_language, token_language, tag_languages,
+                partition_size, n_offset, partition_start,
+                unique_sentences=unique_sentences, force_save=force_save)
 
             f.close()
-
-        # Remove padded non-sentences from arrays when saving
-        #   on partition breaks
-        if n_current:
-
-            self._save_partition(form_char_matrix[:n_current],
-                                 token_char_matrix[:n_current],
-                                 form_len_matrix[:n_current],
-                                 token_len_matrix[:n_current],
-                                 token_matrix[:n_current],
-                                 tag_matrix[:n_current],
-                                 sentence_len_matrix[:n_current],
-                                 self.n_partitions)
-            self.n_partitions += 1
-
-            partition_end = time.time()
-            print('\tTime elapsed: %4f' % (partition_end - partition_start))
-            partition_start = partition_end
 
     def _check_partitions(self):
         """Summary
@@ -405,27 +428,14 @@ class Database:
         self.n_sentences = n_sentences
         self.partition_lengths = partition_lengths
 
-    def _save_partition(self,
-                        form_char_matrix: np.ndarray,
-                        token_char_matrix: np.ndarray,
-                        form_len_matrix: np.ndarray,
-                        token_len_matrix: np.ndarray,
-                        token_matrix: np.ndarray,
-                        tag_matrix: np.ndarray,
-                        sentence_len_matrix: np.ndarray,
-                        n: int):
+    def _save_partition(self, n: int, last: int):
         """Summary
 
         Args:
-            form_char_matrix (np.ndarray): Description
-            token_char_matrix (np.ndarray): Description
-            form_len_matrix (np.ndarray): Description
-            token_len_matrix (np.ndarray): Description
-            token_matrix (np.ndarray): Description
-            tag_matrix (np.ndarray): Description
-            sentence_len_matrix (np.ndarray): Description
             n (int): Description
         """
+        assert(self.has_partition_matrices)
+
         if not os.path.isdir(self.partition_dir):
             util.mkdir_p(self.partition_dir)
 
@@ -435,31 +445,31 @@ class Database:
 
         f_f_char = self.get_file(n, 'f_f_char')
         print('\tForm characters matrix file: %s' % f_f_char)
-        np.save(f_f_char, form_char_matrix)
+        np.save(f_f_char, self.m_dict['form_char'][:last])
 
         f_t_char = self.get_file(n, 'f_t_char')
         print('\tToken characters matrix file: %s' % f_t_char)
-        np.save(f_t_char, token_char_matrix)
+        np.save(f_t_char, self.m_dict['token_char'][:last])
 
         f_f_len = self.get_file(n, 'f_f_len')
         print('\tForm lengths matrix file: %s' % f_f_len)
-        np.save(f_f_len, form_len_matrix)
+        np.save(f_f_len, self.m_dict['form_len'][:last])
 
         f_t_len = self.get_file(n, 'f_t_len')
         print('\tToken lengths matrix file: %s' % f_t_len)
-        np.save(f_t_len, token_len_matrix)
+        np.save(f_t_len, self.m_dict['token_len'][:last])
 
         f_token = self.get_file(n, 'f_token')
         print('\tToken matrix file: %s' % f_token)
-        np.save(f_token, token_matrix)
+        np.save(f_token, self.m_dict['token'][:last])
 
         f_tag = self.get_file(n, 'f_tag')
         print('\tTag matrix file: %s' % f_tag)
-        np.save(f_tag, tag_matrix)
+        np.save(f_tag, self.m_dict['tag'][:last])
 
         f_s_len = self.get_file(n, 'f_s_len')
         print('\tSentence length matrix file: %s\n' % f_s_len)
-        np.save(f_s_len, sentence_len_matrix)
+        np.save(f_s_len, self.m_dict['sentence_len'][:last])
 
     def _add_partition_file_names(self, n):
         """Summary

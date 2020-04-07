@@ -1,11 +1,12 @@
 import argparse
 import os
+import shutil
 
 from src import config
 from src import kana
 from src import languages
 from src import rules
-from src.sorted_tag_databases import SortedTagDatabase
+from src.sorted_tag_database import SortedTagDatabase
 from src.datasets import Dataset
 
 cfg = config.parse()
@@ -129,6 +130,15 @@ if __name__ == '__main__':
         help='CSV file within ./data/rules containing rule information',
         required=True)
 
+    # ====================================================
+    #                   Other parameters
+    # ====================================================
+
+    parser.add_argument(
+        '--tmp_dir', metavar='TMP_DIR', type=str, default=DIRECTORIES['tmp'],
+        help='sub-directory of (./data/tmp/) to write temporary files to',
+        required=False)
+
     args = parser.parse_args()
 
     rule_file = os.path.join(DIRECTORIES['rules'], args.rule_file)
@@ -171,5 +181,10 @@ if __name__ == '__main__':
 
     DS = Dataset.load(ds_load_file)
 
-    DS.classify(RL=RL, KL=KL, STDB=STDB)
+    tmp_db_dir = os.path.join(args.tmp_dir, 'db')
 
+    if os.path.isdir(tmp_db_dir):
+        shutil.rmtree(tmp_db_dir)
+
+    DS.classify(character_language, token_language, tag_languages,
+                RL=RL, KL=KL, STDB=STDB, tmp_db_dir=tmp_db_dir)

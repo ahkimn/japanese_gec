@@ -10,7 +10,6 @@ import numpy as np
 from . import config
 from . import languages
 
-from .datasets import Dataset
 from .kana import KanaList
 from .match import TemplateMatch
 from .rules import Rule, CharacterRule
@@ -25,21 +24,12 @@ DS_PARAMS = cfg['dataset_params']
 def generate_synthetic_pairs(
         stdb: SortedTagDatabase, token_language: languages.Language,
         tag_languages: list, rule: Rule, matches: TemplateMatch,
-        KL: KanaList, n_sample: int=30, verbose: bool=True):
+        KL: KanaList, n_sample: int=30, verbose: bool=True,
+        ret_as_dataset: bool=True):
     """
     Function to generate errored sentences from matched sentences using the
         mapping and template phrases of a given rule
     """
-
-    # Return arrays containing newly generated sentence pairs
-    gen_correct = list()
-    gen_error = list()
-    # Return array containing start/end index of correct/error phrases
-    #    in each sentence
-    gen_correct_bounds = list()
-    gen_error_bounds = list()
-    # Return array containing sub-rule of each sentence
-    gen_subrules = list()
 
     if verbose:
         print("\n\tCorrect: " + ' | '.join(rule.tokens_correct))
@@ -80,7 +70,6 @@ def generate_synthetic_pairs(
             token_language, tag_languages, stdb)
 
     n_valid = len(valid_indices)
-    print_perm = np.random.permutation(n_valid)[:n_sample]
 
     print('\n\tTokens succesfully generated for %d / %d sentences' %
           (n_valid, n_sentences))
@@ -89,6 +78,20 @@ def generate_synthetic_pairs(
     valid_indices = set(valid_indices)
     not_seen = valid_indices.copy()
     n_generated = 0
+
+    print_perm = np.random.permutation(n_valid)[:n_sample]
+
+    # Return arrays containing newly generated sentence pairs
+    gen_correct = list()
+    gen_error = list()
+    # Return array containing start/end index of correct/error phrases
+    #    in each sentence
+    gen_correct_bounds = list()
+    gen_error_bounds = list()
+    # Return array containing sub-rule of each sentence
+    gen_subrules = list()
+    # Return array containing index of each sentence in original Database
+    gen_db_indices = list()
 
     # Iterate over each sub-rule
     for i in range(matches.n_subrules):
@@ -167,6 +170,7 @@ def generate_synthetic_pairs(
                 gen_correct_bounds.append([s, s + rule.n_correct_tokens])
 
                 gen_subrules.append(i)
+                gen_db_indices.append(matches.match_indices[idx])
                 n_generated += 1
 
             except ValueError:
@@ -192,6 +196,5 @@ def generate_synthetic_pairs(
 
     gen_rules = [rule.name] * n_generated
 
-    return Dataset.import_data(gen_error, gen_correct,
-                               gen_error_bounds, gen_correct_bounds,
-                               gen_rules, gen_subrules)
+    return gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \
+        gen_rules, gen_subrules, gen_db_indices

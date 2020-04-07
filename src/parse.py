@@ -14,6 +14,7 @@ from . import config
 cfg = config.parse()
 P_PARAMS = cfg['parser_params']
 
+
 def default_parser():
 
     dict_dir = P_PARAMS['dictionary_dir']
@@ -78,8 +79,7 @@ def parse_full(sentence: str, parser: MeCab.Tagger,
         assert(delimiter is not None)
         sentence = sentence.replace(delimiter, '')
 
-    whitespace = re.compile(r'/s+')
-    sentence = whitespace.sub('', sentence.strip())
+    sentence = re.sub(r'\s+', '', sentence.strip())
 
     len_parsed = 0
 
