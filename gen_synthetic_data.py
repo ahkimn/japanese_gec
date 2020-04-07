@@ -21,6 +21,7 @@ from src import match
 from src import rules
 from src import util
 
+from src.datasets import Dataset
 from src.sorted_tag_database import SortedTagDatabase
 from src.util import str_bool
 
@@ -41,22 +42,6 @@ SAVE_PARAMS = DS_PARAMS['save_names']
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Database Construction')
-
-    # ====================================================
-    #    Parameters for loaded source corpus files
-    # ====================================================
-
-    # Required
-    parser.add_argument(
-        '--corpus_dir', metavar='CORPUS_DIR',
-        type=str, help='sub-directory of ./data/source_corpora \
-            containing source corpus files', required=True)
-
-    parser.add_argument(
-        '--filetype', metavar='FILE_TYPE',
-        default=D_PARAMS['source_corpus_filetype'],
-        type=str, help='filetype of source corpus files',
-        required=False)
 
     # ====================================================
     #      Parameters for loaded Language instances
@@ -275,16 +260,16 @@ if __name__ == '__main__':
         DIRECTORIES['databases'], args.db_load_dir)
 
     db = databases.Database(
-        args.db_form_char_prefix,
-        args.db_form_char_len_prefix,
-        args.db_max_sentence_length,
-        args.db_max_token_length,
-        args.db_sentence_len_prefix,
-        args.db_syntactic_tag_prefix,
-        args.db_token_char_prefix,
-        args.db_token_char_len_prefix,
-        args.db_token_prefix,
-        partition_dir=database_load_dir)
+        database_load_dir,
+        form_char_prefix=args.db_form_char_prefix,
+        form_char_len_prefix=args.db_form_char_len_prefix,
+        max_sentence_length=args.db_max_sentence_length,
+        max_token_length=args.db_max_token_length,
+        sentence_len_prefix=args.db_sentence_len_prefix,
+        syntactic_tag_prefix=args.db_syntactic_tag_prefix,
+        token_char_prefix=args.db_token_char_prefix,
+        token_char_len_prefix=args.db_token_char_len_prefix,
+        token_prefix=args.db_token_prefix)
 
     # Load SortedTagDatabase instance
     stdb_load_dir = os.path.join(
@@ -325,9 +310,15 @@ if __name__ == '__main__':
         print(cfg['BREAK_LINE'])
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
-        DS = generate.generate_synthetic_pairs(stdb, token_language,
-                                               tag_languages, rule, matches,
-                                               KL=KL)
+        gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \
+            gen_rules, gen_subrules = \
+            generate.generate_synthetic_pairs(stdb, token_language,
+                                              tag_languages, rule, matches,
+                                              KL=KL)
+
+        DS = Dataset.import_data(gen_error, gen_correct,
+                                 gen_error_bounds, gen_correct_bounds,
+                                 gen_rules, gen_subrules)
 
         if args.manual_check:
 

@@ -171,16 +171,16 @@ if __name__ == '__main__':
         shutil.rmtree(database_save_dir)
 
     db = databases.Database(
-        args.db_form_char_prefix,
-        args.db_form_char_len_prefix,
-        args.db_max_sentence_length,
-        args.db_max_token_length,
-        args.db_sentence_len_prefix,
-        args.db_syntactic_tag_prefix,
-        args.db_token_char_prefix,
-        args.db_token_char_len_prefix,
-        args.db_token_prefix,
-        partition_dir=database_save_dir)
+        database_save_dir,
+        form_char_prefix=args.db_form_char_prefix,
+        form_char_len_prefix=args.db_form_char_len_prefix,
+        max_sentence_length=args.db_max_sentence_length,
+        max_token_length=args.db_max_token_length,
+        sentence_len_prefix=args.db_sentence_len_prefix,
+        syntactic_tag_prefix=args.db_syntactic_tag_prefix,
+        token_char_prefix=args.db_token_char_prefix,
+        token_char_len_prefix=args.db_token_char_len_prefix,
+        token_prefix=args.db_token_prefix)
 
     lang_load_dir = os.path.join(
         DIRECTORIES['languages'], args.lang_load_dir)

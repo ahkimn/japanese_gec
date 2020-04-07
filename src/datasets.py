@@ -7,15 +7,20 @@
 # Python Version: 3.7
 
 import os
+import math
 import numpy as np
 import pandas as pd
 
 from . import config
+from . import generate
 from . import sample
 from . import util
+from . import match
 
 from . util import str_list
-from . rules import CharacterRule, Rule, RuleList
+from . databases import Database
+from . languages import Language
+from . rules import RuleList
 from . kana import KanaList
 from . sorted_tag_database import SortedTagDatabase
 
@@ -543,20 +548,89 @@ class Dataset:
 
         return cls(data=data)
 
-    def classify(self, RL: RuleList, KL: KanaList, STDB: SortedTagDatabase):
+    def classify(self, character_language: Language, token_language: Language,
+                 tag_languages: list, RL: RuleList, KL: KanaList,
+                 STDB: SortedTagDatabase, tmp_db_dir: str, override: bool=True):
 
         self._setup()
 
         unclassified = len(self.rules) == 1 and self.rules[0] == ''
 
+        DB = self._make_tmp_db(character_language,
+                               token_language, tag_languages, tmp_db_dir)
+
+        print('\nGenerating \'ideal\' errors from rule list...')
+        print(cfg['BREAK_LINE'])
+
         for rule, idx in RL.iterate_rules('-1'):
 
-            if isinstance(rule, CharacterRule):
+            matches = match.match_correct(
+                rule, DB, STDB, n_max_out=-1, out_ratio=1.0)
+            error_sentences, correct_sentences, error_bounds, \
+                correct_bounds, rules, subrules, match_indices = \
+                generate.generate_synthetic_pairs(
+                    STDB, token_language, tag_languages, rule, matches,
+                    KL=KL, ret_as_dataset=False)
 
-            else:
+            n_matches = len(error_sentences)
+
+            for i in range(n_matches):
+
+                error = error_sentences[i]
+                correct = correct_sentences[i]
+                idx = match_indices[i]
+
+                df_error = self.df[DS_PARAMS['col_error']].iloc[idx]
+                if isinstance(df_error, str):
+                    df_error = df_error.split(' ')
+
+                df_correct = self.df[DS_PARAMS['col_correct']].iloc[idx]
+
+                if isinstance(df_correct, str):
+                    df_correct = df_correct.split(' ')
+
+                # Sanity check
+                if df_correct == correct:
+
+                    pass
+
+                else:
+
+                    print(df_correct)
+                    print(correct)
+
+                error_phrase = error[error_bounds[i][0]:error_bounds[i][1]]
 
 
-    def _translate_column():
+    def _make_tmp_db(self, character_language: Language,
+                     token_language: Language, tag_languages: list,
+                     tmp_db_dir: str):
 
-        pass
+        DB = Database(tmp_db_dir)
 
+        for sentences in self._iterate_sentences(DS_PARAMS['col_correct']):
+
+            if isinstance(sentences.iloc[0], list):
+                sentences = [''.join(sentence) for sentence in sentences]
+
+            DB.add_sentences(sentences, character_language,
+                             token_language, tag_languages,
+                             force_save=True, allow_duplicates=True)
+
+        return DB
+
+    def _iterate_sentences(self, column: str, batch_size=1000):
+
+        n_batch = math.ceil(self.n_sentences / batch_size)
+        n_offset = 0
+
+        col_data = self.df[column]
+
+        for i in range(n_batch):
+
+            n_end = min(self.n_sentences, n_offset + batch_size)
+
+            data = col_data.iloc[n_offset:n_end]
+            n_offset = n_end
+
+            yield data
