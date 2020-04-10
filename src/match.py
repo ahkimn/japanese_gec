@@ -51,8 +51,6 @@ class TemplateMatch:
 
             self.check_sentence_count()
 
-        print(self.match_indices)
-
     def _resolve_multiple_matches(self, match_array: np.ndarray):
 
         print("\tTotal number of sentences with at least one match: %d"
@@ -331,10 +329,10 @@ class TemplateMatch:
 
 def match_correct(rule: Rule,
                   db: Database, stdb: SortedTagDatabase,
-                  max_token: int=50000, n_search: int=-1,
+                  max_token: int=100000, n_search: int=-1,
                   n_max_out: int=200000, n_min_out: int=5000,
                   out_ratio: float=0.1, RS: RandomState=None,
-                  ):
+                  pre_merge_threshold: int=10):
 
     print("\tFinding potential substitute tokens...")
     print(cfg['BREAK_SUBLINE'])
@@ -343,7 +341,8 @@ def match_correct(rule: Rule,
     # Find sentences matching template
     matches = \
         _find_template_sentences(rule, db, n_search, max_token,
-                                 n_min_out, n_max_out, out_ratio, RS)
+                                 n_min_out, n_max_out, out_ratio, RS,
+                                 pre_merge_threshold)
 
     print("\n\tCategorizing matches into sub-rules...")
     print(cfg['BREAK_SUBLINE'])
@@ -418,6 +417,10 @@ def _find_template_sentences(
         match_threshold = \
             int((n_max_out * pre_merge_threshold) /
                 (n_search / avg_partition_size))
+
+    else:
+
+        match_threshold = -1
 
     print('\tMaximum Pre-merge match count per partition: %d'
           % match_threshold)
@@ -496,7 +499,7 @@ def _find_template_sentences(
         all_matches.append(matches)
         n_partition += 1
 
-        if matches.n_sentences > match_threshold:
+        if match_threshold != -1 and matches.n_sentences > match_threshold:
 
             perm = np.arange(matches.n_sentences) if RS is None \
                 else RS.permutation(matches.n_sentences)

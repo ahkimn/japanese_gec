@@ -251,7 +251,8 @@ def process_annotated_file(
     input_file: str, sentence_delimiter: str=',',
     error_delimiters: list=DS_PARAMS['error_delimiters'],
     correct_delimiters: list=DS_PARAMS['correct_delimiters'],
-    error_first: bool=True, raise_on_error: bool=False
+    error_first: bool=True, raise_on_error: bool=False,
+    ignore_punctuation: bool=True, punctuation_list: list=['。']
 ):
     """
     Read file containing annotations (error/correct phrase boundaries)
@@ -284,9 +285,12 @@ def process_annotated_file(
 
     with open(input_file, "r", encoding="utf-8") as f_in:
 
-        line_number = 1
+        n_processed = 1
+        line_number = 0
 
         for line in f_in.readlines():
+
+            line_number += 1
 
             print('line %d: %s' % (line_number, line))
             line = line.strip().split(sentence_delimiter)
@@ -311,6 +315,16 @@ def process_annotated_file(
                 if raise_on_error:
                     raise
                 continue
+
+            source_punctuation, target_punctuation = '', ''
+            if ignore_punctuation:
+                if source_line[-1] in punctuation_list:
+                    source_punctuation = source_line[-1]
+                    source_line = source_line[:-1]
+
+                if target_line[-1] in punctuation_list:
+                    target_punctuation = target_line[-1]
+                    target_line = target_line[:-1]
 
             base_source = source_line
             base_target = target_line
@@ -368,13 +382,21 @@ def process_annotated_file(
                     raise
                 continue
 
+            if ignore_punctuation:
+                if source_punctuation != '':
+                    source_tokens.append(source_punctuation)
+                if target_punctuation != '':
+                    target_tokens.append(target_punctuation)
+
             source_sentences.append(source_tokens)
             target_sentences.append(target_tokens)
 
             source_bounds.append([err_start, err_end])
             target_bounds.append([crt_start, crt_end])
 
-            line_number += 1
+            n_processed += 1
+
+    print('Sentence pairs succesfully processed: %d' % n_processed)
 
     f_in.close()
 

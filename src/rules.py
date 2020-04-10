@@ -738,6 +738,10 @@ class RuleList:
 
                 self.rule_dict[rule.name] = rule
 
+    def get_rule(self, name):
+
+        return self.rule_dict[name]
+
     def print_rule(self, name):
 
         assert(name in self.rule_dict.keys())

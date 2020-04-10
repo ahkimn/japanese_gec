@@ -7,7 +7,6 @@ data/model_output/
 data/sorted_tag_databases/
 data/source_corpora/
 data/synthesized/
-data/test_corpora/
 data/tmp/
 models/
 config.yml

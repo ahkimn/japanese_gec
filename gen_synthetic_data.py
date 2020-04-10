@@ -311,7 +311,7 @@ if __name__ == '__main__':
 
         matches = match.match_correct(rule, db, stdb, RS=RS)
         gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \
-            gen_rules, gen_subrules = \
+            gen_rules, gen_subrules, _ = \
             generate.generate_synthetic_pairs(stdb, token_language,
                                               tag_languages, rule, matches,
                                               KL=KL)
