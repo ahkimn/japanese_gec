@@ -50,7 +50,7 @@ To setup and run the data synthesis pipeline the following scripts must be execu
 6. Run the script *split_dataset.py* from the root directory
   - This automatically performs a balanced sampling of training, development, and testing data from a Dataset instance
   - The split data is saved into three new Dataset instances in a user-defined directory
-      ```console
+    ```console
     python split_dataset.py --ds_load_dir del_merged --ds_name ex --ds_split_dir del_split
       ```
 
@@ -61,9 +61,9 @@ To setup and run the data synthesis pipeline the following scripts must be execu
     - It invokes fairseq-preprocess on the .correct and .error files
     - It then invokes fairseq-generate on the preprocessed data and extracts the model hypothesis from the output
     - Deletes all but the best model epoch and saves the model to the ./models/ directory
-        ```console
+    ```console
     python train_model.py --ds_load_dir del_split --ds_name_train syn_train --ds_name_dev syn_dev --ds_name_test syn_test --command all --model_arch fconv_jp_mini --model_save_dir del
-      ```
+    ```
 
 # Dataset Manipulation
 
