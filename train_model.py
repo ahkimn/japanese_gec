@@ -5,9 +5,9 @@ import shutil
 
 from src import config
 from src import util
+from src import architectures
 from src.datasets import Dataset
 from src.util import str_bool
-
 
 cfg = config.parse()
 DS_PARAMS = cfg['dataset_params']
@@ -15,6 +15,8 @@ MDL_PARAMS = cfg['model_params']
 DIRECTORIES = cfg['directories']
 
 SAVE_PARAMS = DS_PARAMS['save_names']
+
+os.environ['KMP_INIT_AT_FORK'] = 'FALSE'
 
 
 if __name__ == '__main__':
@@ -78,13 +80,13 @@ if __name__ == '__main__':
             floating point values for training', required=False)
 
     parser.add_argument(
-        '--model-save_dir', metavar='MODEL_SAVE_DIR', type=str,
+        '--model_save_dir', metavar='MODEL_SAVE_DIR', type=str,
         default='mdl',
         help='sub-directory of \'./models\' to save model to',
         required=False)
 
     parser.add_argument(
-        '--model-arch', metavar='MODEL_ARCH', type=str,
+        '--model_arch', metavar='MODEL_ARCH', type=str,
         help='architecture of model (registered in Fairseq) to use',
         default='fconv_jp_current', required=False)
 
@@ -186,12 +188,11 @@ if __name__ == '__main__':
                   '--dropout', str(0.1),
                   '--max-tokens', str(args.n_words_model),
                   '--save-dir', model_save_dir,
-                  '--batch-size', args.batch_size,
+                  '--batch-size', str(args.batch_size),
                   '--arch', args.model_arch]
 
         if args.cuda != -1:
             os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
-            os.environ['KMP_INIT_AT_FORK'] = 'FALSE'
 
         if args.fp16:
             t_args.append('--fp16')

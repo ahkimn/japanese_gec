@@ -155,7 +155,7 @@ class Dataset:
 
             print('%d | %d' % (subrule, count))
 
-    def sample_rule_data(self, rule: str, n_per_subrule: int=5,
+    def sample_rule_data(self, rule: str='', n_per_subrule: int=5,
                          RS: RandomState=None):
 
         self._setup()
@@ -519,16 +519,8 @@ class Dataset:
     def import_columns(self, data: list, column_name: str):
 
         assert(len(data) == self.n_sentences)
-        print(self.df.columns)
-
-        print(self.df)
         kwargs = {column_name: data}
-
         self.df = self.df.assign(**kwargs)
-        print(self.df)
-        raise
-
-        pass
 
     @classmethod
     def import_data(cls, error_sentences: list, correct_sentences: list,
@@ -572,31 +564,81 @@ class Dataset:
 
         return cls(data=data)
 
-    def eval(self, check_rule: str, column: str, full_sentence=False):
+    def eval(self, column: str, full_sentence=False):
 
         self._setup()
 
-        UEM = UniqueErrorMapping(self)
-
-        if check_rule not in self.rules:
-            raise ValueError('rule %s not present' % check_rule)
         if column not in self.df.columns:
             raise ValueError('column %s not present' % column)
 
-        check_rules = self.rules if check_rule == '-1' else [check_rule]
+        in_rule_correct = []
+        in_rule_incorrect = []
+        out_of_rule_correct = []
+        out_of_rule_incorrect = []
 
-        for rule in check_rules:
+        rule_values = self.df[DS_PARAMS['col_rules']].values
 
-            indices = self.df[DS_PARAMS['col_rules']] == rule
+        for rule in self.rules:
 
- 
+            indices = np.where(rule_values == rule)[0]
+
+            for idx in indices:
+
+                i_data = self.df.iloc[idx]
+
+                model_correct = i_data[column]
+                df_correct = i_data[DS_PARAMS['col_correct']]
+                correct_bounds = i_data[DS_PARAMS['col_correct_bounds']]
+
+                sentence_correct = (''.join(df_correct) ==
+                                    ''.join(model_correct))
+
+                # Use bounds if bounds are provided and user specifies to use
+                #   phrase-level accuracy
+                if not sentence_correct and not full_sentence and \
+                        correct_bounds != []:
+
+                    if len(model_correct) >= correct_bounds[1]:
+
+                        df_correct_phrase = ''.join(
+                            df_correct[correct_bounds[0]:correct_bounds[1]])
+                        model_correct_phrase = ''.join(
+                            model_correct[correct_bounds[0]:correct_bounds[1]])
+
+                        sentence_correct = \
+                            (df_correct_phrase == model_correct_phrase)
+
+                if sentence_correct:
+
+                    if rule != '':
+
+                        in_rule_correct.append(idx)
+
+                    else:
+                        out_of_rule_correct.append(idx)
+
+                else:
+
+                    if rule != '':
+                        in_rule_incorrect.append(idx)
+
+                    else:
+                        out_of_rule_incorrect.append(idx)
+
+        UEM = UniqueErrorMapping(self)
+        in_correct, in_total = UEM.resolve_unique_accuracy(
+            in_rule_correct, in_rule_incorrect)
+        out_correct, out_total = UEM.resolve_unique_accuracy(
+            out_of_rule_correct, out_of_rule_incorrect)
+
+        in_correct = in_correct.union(out_correct).intersection(in_total)
+        out_total = out_total.difference(in_total)
+        out_correct = out_correct.difference(
+            in_correct).intersection(out_total)
 
 
-
-
-
-
-
+        print('\n\tIn rule accuracy: %d / %d' % (len(in_correct), len(in_total)))
+        print('\tOut of rule accuracy: %d / %d' % (len(out_correct), len(out_total)))
 
     def classify(self, character_language: Language, token_language: Language,
                  tag_languages: list, RL: RuleList, KL: KanaList,
@@ -635,7 +677,8 @@ class Dataset:
             print(cfg['BREAK_LINE'])
 
             matches = match.match_correct(
-                rule, DB, STDB, n_max_out=-1, out_ratio=1.0, pre_merge_threshold=0)
+                rule, DB, STDB, n_max_out=-1, out_ratio=1.0,
+                pre_merge_threshold=0)
             error_sentences, correct_sentences, error_bounds, \
                 correct_bounds, rules, subrules, match_indices = \
                 generate.generate_synthetic_pairs(
@@ -678,7 +721,7 @@ class Dataset:
                            rule_match_subrules)
 
     def _confirm_error_and_bounds(self, idx, error_sentence, correct_sentence,
-                                  error_bounds, correct_bounds, 
+                                  error_bounds, correct_bounds,
                                   check_window=2):
 
         error_phrase = error_sentence[
@@ -711,7 +754,7 @@ class Dataset:
 
         # Error string must be present
         if error_str not in df_error_str:
-                return False, None, None
+            return False, None, None
 
         error_idx = df_error_str.index(error_str)
         correct_idx = df_correct_str.index(correct_str)
@@ -731,25 +774,28 @@ class Dataset:
                 sc_error = max(error_idx - check_window, 0)
                 sc_correct = max(correct_idx - check_window, 0)
 
-                if df_correct_str[sc_correct:correct_idx] != df_error_str[sc_error:error_idx]:
+                if df_correct_str[sc_correct:correct_idx] != \
+                        df_error_str[sc_error:error_idx]:
                     return False, None, None
             else:
                 ec_error = min(error_end + check_window, len(df_error_str))
-                ec_correct = min(correct_end + check_window, len(df_correct_str))
+                ec_correct = min(correct_end + check_window,
+                                 len(df_correct_str))
 
-                if df_correct_str[correct_end:ec_correct] != df_error_str[error_end:ec_error]:
+                if df_correct_str[correct_end:ec_correct] != \
+                        df_error_str[error_end:ec_error]:
                     return False, None, None
 
         right_offset = len(df_correct_str) - (correct_idx + len(correct_str))
 
         if df_error_phrase != error_phrase:
 
-
-
             error_idx = df_error_str.index(error_str)
 
             # Left boundaries must align
-            if error_idx != correct_idx or len(df_error_str) - (error_idx + len(error_str)) != right_offset:
+            if error_idx != correct_idx or \
+                    len(df_error_str) - \
+                    (error_idx + len(error_str)) != right_offset:
                 return False, None, None
 
             error_bounds = _fix_bound_indices(df_error, error_str)
@@ -1039,3 +1085,18 @@ class UniqueErrorMapping:
               (n_unique, self.n_unique_errors))
 
         return inv_coverage
+
+    def resolve_unique_accuracy(self, rule_correct, rule_incorrect):
+
+        unique_correct = set()
+        unique_incorrect = set()
+
+        for i in rule_correct:
+            unique_correct.add(self.sentence_idx_unique_errors[i])
+
+        for j in rule_incorrect:
+            unique_incorrect.add(self.sentence_idx_unique_errors[j])
+
+        unique_total = unique_correct.union(unique_incorrect)
+
+        return unique_correct, unique_total

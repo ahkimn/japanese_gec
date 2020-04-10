@@ -151,12 +151,6 @@ if __name__ == '__main__':
         DS = Dataset.import_data(err_sentences, crt_sentences,
                                  err_bounds, crt_bounds)
 
-        print('Showing first 10 columns of created Dataset:')
-        print(DS.df.iloc[:10])
-
-        print('Saving dataset...')
-        DS.save(ds_file)
-
     elif args.ds_action == 'import':
 
         DS = Dataset.load(ds_file)
@@ -170,3 +164,14 @@ if __name__ == '__main__':
     else:
         raise ValueError('Argument \'--ds_action\' must be one of \
                 \'create\' or \'import\'')
+
+    print('Showing first 10 columns of created Dataset:')
+    print(DS.df.iloc[:10])
+
+    response = None
+    while response != 'y' and response != 'n':
+        response = input('Save dataset (y/n): ').lower()
+    
+    if response == 'y':
+        DS.save(ds_file)
+
