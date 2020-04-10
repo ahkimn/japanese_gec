@@ -66,15 +66,15 @@ if __name__ == '__main__':
 
         if command == 'eval':
 
-            rule = input('Please enter rule to evaluate: ')
             column = input('Please enter column name to evaluate: ')
 
             response = None
             while response != 'y' and response != 'n':
-                response = input('Evaluate on full sentence accuracy (y/n): ').lower()
+                response = \
+                    input('Evaluate on full sentence accuracy (y/n): ').lower()
             print()
             full_sentence = True if response == 'y' else False
-            DS.eval(rule, column, full_sentence)
+            DS.eval(column, full_sentence)
 
         if command == 'rules':
 
@@ -83,9 +83,11 @@ if __name__ == '__main__':
         elif command == 'sample':
 
             rule = input('Please enter rule to sample from: ')
+            n_sample = int(input(
+                'Please number desired number of samples per subrule: '))
             print()
 
-            DS.sample_rule_data(rule)
+            DS.sample_rule_data(rule, n_per_subrule=n_sample)
 
         elif command == 'subrules':
 
