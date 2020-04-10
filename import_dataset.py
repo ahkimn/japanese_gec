@@ -59,7 +59,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--file_name', metavar='FILE_NAME',
         type=str, help='full filename (including extension) of file \
-            within ./data/test_corpora directory', required=True)
+            within directory specified by --file_dir', required=True)
+
+    parser.add_argument(
+        '--file_dir', metavar='FILE_DIR', type=str,
+        default=DIRECTORIES['test_corpora'], help='path to directory containing \
+        file to parse')
 
     parser.add_argument(
         '--annotated', metavar='ANNOTATED',
@@ -105,7 +110,7 @@ if __name__ == '__main__':
                            args.ds_dir, '%s.%s' %
                            (args.ds_name, args.ds_suffix))
 
-    load_file = os.path.join(DIRECTORIES['test_corpora'], args.file_name)
+    load_file = os.path.join(args.file_dir, args.file_name)
 
     if args.annotated:
 
@@ -146,11 +151,22 @@ if __name__ == '__main__':
         DS = Dataset.import_data(err_sentences, crt_sentences,
                                  err_bounds, crt_bounds)
 
+        print('Showing first 10 columns of created Dataset:')
+        print(DS.df.iloc[:10])
+
         print('Saving dataset...')
         DS.save(ds_file)
 
-    else:
+    elif args.ds_action == 'import':
 
         DS = Dataset.load(ds_file)
 
         print('Importing data into existing dataset instance at: %s' % ds_file)
+
+        assert(args.import_name is not None)
+
+        DS.import_columns(err_sentences, args.import_name)
+
+    else:
+        raise ValueError('Argument \'--ds_action\' must be one of \
+                \'create\' or \'import\'')

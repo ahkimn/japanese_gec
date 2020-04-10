@@ -59,7 +59,7 @@ class Dataset:
         assert(self.has_bounds and self.has_subrules)
 
         self.setup = False
-        self.save_file = None
+        self.save_file = ''
 
     def _setup(self, force=False):
 
@@ -348,19 +348,25 @@ class Dataset:
             file_error = open(os.path.join(
                 directory, '%s.%s' % (save_prefix, e_suffix)), 'w+')
 
-        elif separation == 'rule':
+            for i in range(self.n_sentences):
 
-            pass
+                data = self.df.iloc[i]
 
-        elif separation == 'subrule':
+                correct = str_list(data[DS_PARAMS['col_correct']])
+                error = str_list(data[DS_PARAMS['col_error']])
 
-            pass
+                correct = token_delimiter.join(correct)
+                error = token_delimiter.join(error)
 
-        else:
+                correct_data = [correct]
+                error_data = [error]
 
-            raise ValueError(
-                'Separation type must be one of \'%s\' \'%s\', or \'%s\'' %
-                ('rule', 'subrule', 'none'))
+                file_correct.write(data_delimiter.join(
+                    correct_data) + os.linesep)
+                file_error.write(data_delimiter.join(
+                    error_data) + os.linesep)
+
+            return
 
         for i in range(self.n_rules):
 
@@ -486,18 +492,22 @@ class Dataset:
 
             raise
 
-    def save_default(self):
+    def save(self, filename: str=''):
 
-        assert(self.save_file is not None)
+        if filename == '':
 
-        self.save(self.save_file)
+            print(self.save_file)
 
-    def save(self, filename):
+            assert(self.save_file is not None)
 
-        self.df.to_pickle(filename)
+            self.df.to_pickle(self.save_file)
+
+        else:
+
+            self.df.to_pickle(filename)
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, filename: str):
 
         df = pd.read_pickle(filename)
 
@@ -505,6 +515,20 @@ class Dataset:
         DS.save_file = filename
 
         return DS
+
+    def import_columns(self, data: list, column_name: str):
+
+        assert(len(data) == self.n_sentences)
+        print(self.df.columns)
+
+        print(self.df)
+        kwargs = {column_name: data}
+
+        self.df = self.df.assign(**kwargs)
+        print(self.df)
+        raise
+
+        pass
 
     @classmethod
     def import_data(cls, error_sentences: list, correct_sentences: list,
@@ -548,13 +572,51 @@ class Dataset:
 
         return cls(data=data)
 
-    def classify(self, character_language: Language, token_language: Language,
-                 tag_languages: list, RL: RuleList, KL: KanaList,
-                 STDB: SortedTagDatabase, tmp_db_dir: str, override: bool=True):
+    def eval(self, check_rule: str, column: str, full_sentence=False):
 
         self._setup()
 
-        unclassified = len(self.rules) == 1 and self.rules[0] == ''
+        UEM = UniqueErrorMapping(self)
+
+        if check_rule not in self.rules:
+            raise ValueError('rule %s not present' % check_rule)
+        if column not in self.df.columns:
+            raise ValueError('column %s not present' % column)
+
+        check_rules = self.rules if check_rule == '-1' else [check_rule]
+
+        for rule in check_rules:
+
+            indices = self.df[DS_PARAMS['col_rules']] == rule
+
+ 
+
+
+
+
+
+
+
+
+    def classify(self, character_language: Language, token_language: Language,
+                 tag_languages: list, RL: RuleList, KL: KanaList,
+                 STDB: SortedTagDatabase, tmp_db_dir: str,
+                 check_rule: str='-1', clear: bool=False):
+
+        self._setup()
+        # unclassified = len(self.rules) == 1 and self.rules[0] == ''
+        if clear:
+            kwargs = {DS_PARAMS['col_rules']: '',
+                      DS_PARAMS['col_subrules']: 0}
+            self.df = self.df.assign(**kwargs)
+
+        print('\nDetermining unique error-correct sentence pairs in Dataset')
+        print(cfg['BREAK_LINE'])
+
+        UEM = UniqueErrorMapping(self)
+
+        print('\nCreating temporary Database instance for phrase searching')
+        print(cfg['BREAK_LINE'])
 
         DB = self._make_tmp_db(character_language,
                                token_language, tag_languages, tmp_db_dir)
@@ -562,45 +624,175 @@ class Dataset:
         print('\nGenerating \'ideal\' errors from rule list...')
         print(cfg['BREAK_LINE'])
 
-        for rule, idx in RL.iterate_rules('-1'):
+        rule_match_indices = dict()
+        rule_match_bounds = dict()
+        rule_match_subrules = dict()
+
+        for rule, idx in RL.iterate_rules(check_rule):
+
+            print('\n\n')
+            RL.print_rule(idx)
+            print(cfg['BREAK_LINE'])
 
             matches = match.match_correct(
-                rule, DB, STDB, n_max_out=-1, out_ratio=1.0)
+                rule, DB, STDB, n_max_out=-1, out_ratio=1.0, pre_merge_threshold=0)
             error_sentences, correct_sentences, error_bounds, \
                 correct_bounds, rules, subrules, match_indices = \
                 generate.generate_synthetic_pairs(
                     STDB, token_language, tag_languages, rule, matches,
                     KL=KL, ret_as_dataset=False)
 
+            print('\tVerifying matched sentence pairs')
+            print(cfg['BREAK_SUBLINE'])
+
             n_matches = len(error_sentences)
+
+            valid_indices = []
+            valid_bounds = []
+            valid_subrules = []
 
             for i in range(n_matches):
 
-                error = error_sentences[i]
-                correct = correct_sentences[i]
-                idx = match_indices[i]
+                valid, match_error_bounds, match_correct_bounds = \
+                    self._confirm_error_and_bounds(
+                        match_indices[i],
+                        error_sentences[i], correct_sentences[i],
+                        error_bounds[i], correct_bounds[i])
 
-                df_error = self.df[DS_PARAMS['col_error']].iloc[idx]
-                if isinstance(df_error, str):
-                    df_error = df_error.split(' ')
+                if not valid:
+                    continue
 
-                df_correct = self.df[DS_PARAMS['col_correct']].iloc[idx]
+                # Greedily update rules/subrules/bounds
+                valid_indices.append(match_indices[i])
+                valid_bounds.append([match_error_bounds, match_correct_bounds])
+                valid_subrules.append(subrules[i])
 
-                if isinstance(df_correct, str):
-                    df_correct = df_correct.split(' ')
+            rule_match_indices[rule.name] = valid_indices
+            rule_match_bounds[rule.name] = valid_bounds
+            rule_match_subrules[rule.name] = valid_subrules
 
-                # Sanity check
-                if df_correct == correct:
+        inv_coverage = UEM.resolve_coverage(
+            RL, rule_match_indices, rule_match_bounds)
 
-                    pass
+        self._update_rules(inv_coverage, rule_match_indices, rule_match_bounds,
+                           rule_match_subrules)
 
-                else:
+    def _confirm_error_and_bounds(self, idx, error_sentence, correct_sentence,
+                                  error_bounds, correct_bounds, 
+                                  check_window=2):
 
-                    print(df_correct)
-                    print(correct)
+        error_phrase = error_sentence[
+            error_bounds[0]:error_bounds[1]]
+        correct_phrase = correct_sentence[
+            correct_bounds[0]:correct_bounds[1]]
 
-                error_phrase = error[error_bounds[i][0]:error_bounds[i][1]]
+        error_str = ''.join(error_phrase)
+        correct_str = ''.join(correct_phrase)
 
+        df_error = self.df[DS_PARAMS['col_error']].iloc[idx]
+        if isinstance(df_error, str):
+            df_error = df_error.split(' ')
+        df_error_phrase = df_error[
+            error_bounds[0]:error_bounds[1]]
+
+        df_correct = self.df[DS_PARAMS['col_correct']].iloc[idx]
+        if isinstance(df_correct, str):
+            df_correct = df_correct.split(' ')
+        df_correct_phrase = df_correct[
+            correct_bounds[0]:correct_bounds[1]]
+
+        df_error_str = ''.join(df_error)
+        df_correct_str = ''.join(df_correct)
+
+        # Both phrases should be present
+        if correct_str not in df_correct_str or error_str not in df_error_str:
+
+            return False, None, None
+
+        # Error string must be present
+        if error_str not in df_error_str:
+                return False, None, None
+
+        error_idx = df_error_str.index(error_str)
+        correct_idx = df_correct_str.index(correct_str)
+
+        error_end = error_idx + len(error_str)
+        correct_end = correct_idx + len(correct_str)
+
+        # Non errors should not be matched
+        if error_str == correct_str:
+
+            return False, None, None
+
+        elif error_str in correct_str:
+
+            sub_index = correct_str.index(error_str)
+            if sub_index > 0:
+                sc_error = max(error_idx - check_window, 0)
+                sc_correct = max(correct_idx - check_window, 0)
+
+                if df_correct_str[sc_correct:correct_idx] != df_error_str[sc_error:error_idx]:
+                    return False, None, None
+            else:
+                ec_error = min(error_end + check_window, len(df_error_str))
+                ec_correct = min(correct_end + check_window, len(df_correct_str))
+
+                if df_correct_str[correct_end:ec_correct] != df_error_str[error_end:ec_error]:
+                    return False, None, None
+
+        right_offset = len(df_correct_str) - (correct_idx + len(correct_str))
+
+        if df_error_phrase != error_phrase:
+
+
+
+            error_idx = df_error_str.index(error_str)
+
+            # Left boundaries must align
+            if error_idx != correct_idx or len(df_error_str) - (error_idx + len(error_str)) != right_offset:
+                return False, None, None
+
+            error_bounds = _fix_bound_indices(df_error, error_str)
+            df_error_phrase = df_error[
+                error_bounds[0]:error_bounds[1]]
+
+        if df_correct_phrase != correct_phrase:
+
+            correct_bounds = _fix_bound_indices(df_correct, correct_str)
+            df_correct_phrase = df_correct[
+                correct_bounds[0]:correct_bounds[1]]
+
+        print('\t\tIndex %d: %s -> %s' %
+              (idx, ''.join(df_error_phrase), ''.join(df_correct_phrase)))
+
+        return True, error_bounds, correct_bounds
+
+    def _update_rules(self, indices_rule, rule_indices, rule_bounds,
+                      rule_subrules):
+
+        for rule in rule_indices.keys():
+
+            indices = rule_indices[rule]
+            bounds = rule_bounds[rule]
+            subrules = rule_subrules[rule]
+
+            n_indices = len(indices)
+
+            for i in range(n_indices):
+
+                idx = indices[i]
+
+                r = indices_rule[idx]
+                assert(r is not None)
+
+                # If rule was not selected as coverer, continue
+                if r != rule:
+                    continue
+
+                self.df.at[idx, DS_PARAMS['col_error_bounds']] = bounds[i][0]
+                self.df.at[idx, DS_PARAMS['col_correct_bounds']] = bounds[i][1]
+                self.df.at[idx, DS_PARAMS['col_rules']] = rule
+                self.df.at[idx, DS_PARAMS['col_subrules']] = subrules[i]
 
     def _make_tmp_db(self, character_language: Language,
                      token_language: Language, tag_languages: list,
@@ -634,3 +826,216 @@ class Dataset:
             n_offset = n_end
 
             yield data
+
+
+def _fix_bound_indices(sentence, phrase):
+
+    sentence_str = ''.join(sentence)
+    n_tokens = len(sentence)
+    n_characters = len(sentence_str)
+
+    # assert(phrase in sentence)
+    phrase_start_idx = sentence_str.index(phrase)
+    phrase_end_idx = phrase_start_idx + len(phrase)
+
+    token_start_indices = []
+
+    start_idx = 0
+    for token in sentence:
+        token_start_indices.append(start_idx)
+        start_idx += len(token)
+    token_start_indices.append(n_characters)
+
+    token_start = -1 if phrase_start_idx != 0 else 0
+    token_end = -1 if phrase_end_idx != n_characters else n_tokens
+
+    for i in range(n_tokens):
+
+        if token_start == -1 and phrase_start_idx < token_start_indices[i + 1]:
+            token_start = i
+
+        if token_end == -1 and phrase_end_idx <= token_start_indices[i + 1]:
+            token_end = i + 1
+
+    return [token_start, token_end]
+
+
+def _display_coverage_supersets(match_indices: dict, RL: RuleList):
+    """
+    Determine if any rule of a RuleList contains another using set comparison
+        on matched sentences
+
+    Args:
+        match_indices (dict): Dictionary, keyed by rule name, containing the
+            indices of sentences matched by each rule
+        RL (RuleList): RuleList instance containing rules that are the keys to
+            %match_indices%
+    """
+    processed = set()
+
+    for r_1, set_1 in match_indices.items():
+
+        set_1 = set(set_1)
+
+        s_1 = str(RL.get_rule(r_1))
+
+        if len(set_1) == 0:
+
+            print('\tWARNING: Rule %s (%s) is empty' % (r_1, s_1))
+
+            continue
+
+        processed.add(r_1)
+
+        for r_2, set_2 in match_indices.items():
+
+            set_2 = set(set_2)
+
+            if len(set_2) == 0 or r_2 in processed:
+
+                continue
+
+            s_2 = str(RL.get_rule(r_2))
+
+            if set_1 == set_2:
+
+                print('\tERROR: Rule %s (%s) = %s (%s)' %
+                      (r_1, s_1, r_2, s_2))
+                continue
+
+            diff = set_1.union(set_2)
+
+            if diff == set_1:
+
+                print('\tRule %s (%s) ⊆ %s (%s)' % (r_2, s_2, r_1, s_1))
+
+            elif diff == set_2:
+
+                print('\tRule %s (%s) ⊆ %s (%s)' % (r_1, s_1, r_2, s_2))
+
+
+class UniqueErrorMapping:
+
+    def __init__(self, DS: Dataset):
+
+        self.n_sentences = DS.n_sentences
+        self.n_unique_errors = 0
+
+        error_sentences = DS.df[DS_PARAMS['col_error']]
+        self.unique_errors = dict()
+        self.unique_idx_unique_error = dict()
+        self.unique_error_sentence_idx = dict()
+        self.sentence_idx_unique_errors = dict()
+
+        for i in range(self.n_sentences):
+
+            error = error_sentences.iloc[i]
+            if isinstance(error, list):
+                error = ''.join(error)
+
+            if error in self.unique_errors:
+                unique_error_index = self.unique_errors[error]
+                self.unique_error_sentence_idx[unique_error_index].add(i)
+                self.sentence_idx_unique_errors[i] = unique_error_index
+
+            else:
+                self.unique_errors[error] = self.n_unique_errors
+                self.unique_idx_unique_error[self.n_unique_errors] = error
+                self.unique_error_sentence_idx[self.n_unique_errors] = set([i])
+                self.sentence_idx_unique_errors[i] = self.n_unique_errors
+
+                self.n_unique_errors += 1
+
+        print('\tTotal number of error-correct pairs: %d' % self.n_sentences)
+        print('\tNumber of unique error phrases: %d' % self.n_unique_errors)
+
+    def _resolve_unique_coverage(self, sentence_indices: set):
+
+        unique_covered = set()
+        for idx in sentence_indices:
+            unique_covered.add(self.sentence_idx_unique_errors[idx])
+        return unique_covered
+
+    def _display_multiple_coverage(self, unique_indices: dict):
+        """
+        Determine if any unique errors are covered by multiple rules
+
+        Args:
+            unique_indices (dict): Dictionary, keyed by rule name, that
+                contains the sentence indices (of the source Dataset) covered
+                by each rule
+        """
+        unique_error_rule = dict()
+
+        for rule, rule_unique_indices in unique_indices.items():
+            for i in rule_unique_indices:
+                if i in unique_error_rule:
+                    unique_error_rule[i].append(rule)
+                else:
+                    unique_error_rule[i] = [rule]
+
+        for unique_idx, covering_rules in unique_error_rule.items():
+
+            if len(covering_rules) > 1:
+
+                print('\tError %d: %s' %
+                      (unique_idx, self.unique_idx_unique_error[unique_idx]))
+                print('\t\tMatched by rules: %s' %
+                      ', '.join(str(x) for x in list(covering_rules)))
+
+    def resolve_coverage(self, RL, match_indices, match_bounds,
+                         display_multiple_coverage: bool=True,
+                         display_supersets: bool=True):
+
+        match_unique_indices = dict()
+
+        valid_indices = set()
+        inv_coverage = dict()
+        for i in range(self.n_sentences):
+            inv_coverage[i] = None
+
+        for rule in match_indices.keys():
+            covered = set(match_indices[rule])
+            match_unique_indices[rule] = \
+                self._resolve_unique_coverage(covered)
+            valid_indices = valid_indices.union(covered)
+
+            # For individual pairs with multiple covering rules,
+            #   take last rule iterated over
+            for idx in covered:
+                inv_coverage[idx] = rule
+
+        unique_indices = self._resolve_unique_coverage(valid_indices)
+        n_valid = len(valid_indices)
+        n_unique = len(unique_indices)
+
+        if display_multiple_coverage:
+
+            print('\nDisplaying unique errors covered by multiple rules...')
+            print(cfg['BREAK_LINE'])
+            self._display_multiple_coverage(match_unique_indices)
+
+        if display_supersets:
+
+            print('\nDisplaying empty and superset rules...')
+            print(cfg['BREAK_LINE'])
+            _display_coverage_supersets(match_indices, RL)
+
+        print('\nPer rule coverage:')
+        print(cfg['BREAK_LINE'])
+
+        for rule in match_indices.keys():
+
+            print('\tRule %s: %d total pairs; %d unique errors'
+                  % (rule, len(match_indices[rule]),
+                     len(match_unique_indices[rule])))
+
+        print('\nOverall rule coverage:')
+        print(cfg['BREAK_LINE'])
+
+        print('\t# of sentence pairs covered by at least one rule: %d / %d' %
+              (n_valid, self.n_sentences))
+        print('\t# of unique errors covered by at least one rule: %d / %d' %
+              (n_unique, self.n_unique_errors))
+
+        return inv_coverage

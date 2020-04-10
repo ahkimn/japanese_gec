@@ -210,7 +210,7 @@ class Database:
             partition_size: int=50000, n_start: int=0,
             partition_start: float=None, unique_sentences: set=set(),
             force_save: bool=False, allow_duplicates: bool=False,
-            remove_delimiter: bool=True):
+            remove_delimiter: bool=False):
 
         if partition_start is None:
             partition_start = time.time()
@@ -236,7 +236,7 @@ class Database:
                 sentence, parser, remove_delimiter=remove_delimiter,
                 delimiter=delimiter)
 
-            token_indices = token_language.parse_nodes(tokens)
+            token_indices = token_language.add_nodes(tokens)
             n_tokens = len(token_indices)
 
             # Skip sentences exceeding maximum length
@@ -257,7 +257,7 @@ class Database:
             #   slice of tag_matrix
             for j in range(len(tag_languages)):
 
-                tag_indices = tag_languages[j].parse_nodes(tags[j])
+                tag_indices = tag_languages[j].add_nodes(tags[j])
 
                 self.m_dict['tag'][n_offset, 0, j] = \
                     tag_languages[j].start_index
@@ -293,7 +293,7 @@ class Database:
                 else:
 
                     self.m_dict['form_char'][n_offset, j + 1, :n_char_form] = \
-                        character_language.parse_nodes(form)
+                        character_language.add_nodes(form)
 
                 if n_char_token > self.max_token_length:
 
@@ -302,7 +302,7 @@ class Database:
                 else:
 
                     self.m_dict['token_char'][n_offset, j + 1, :n_char_token] = \
-                        character_language.parse_nodes(token)
+                        character_language.add_nodes(token)
 
             self.n_sentences += 1
             n_offset += 1
@@ -441,7 +441,7 @@ class Database:
 
         self._add_partition_file_names(n)
 
-        print('Saving partition %d' % n)
+        print('\nSaving partition %d' % n)
 
         f_f_char = self.get_file(n, 'f_f_char')
         print('\tForm characters matrix file: %s' % f_f_char)

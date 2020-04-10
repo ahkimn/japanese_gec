@@ -12,6 +12,7 @@ SAVE_PARAMS = DS_PARAMS['save_names']
 VALID_COMMANDS = ['rules',
                   'sample',
                   'subrules',
+                  'eval',
                   'exit']
 
 if __name__ == '__main__':
@@ -47,6 +48,7 @@ if __name__ == '__main__':
     status = True
 
     print('Commands:')
+    print('\teval: Evaluate model performance on a rule')
     print('\tsample: Sample a rule')
     print('\trules: Show statistics for all rules')
     print('\tsubrules: Show subrule statistics for a particular rule')
@@ -59,9 +61,20 @@ if __name__ == '__main__':
         command = ''
 
         while command not in VALID_COMMANDS:
-            print('Please enter command:\n')
-            command = input().lower()
+            command = input('Please enter command: ')
             print()
+
+        if command == 'eval':
+
+            rule = input('Please enter rule to evaluate: ')
+            column = input('Please enter column name to evaluate: ')
+
+            response = None
+            while response != 'y' and response != 'n':
+                response = input('Evaluate on full sentence accuracy (y/n): ').lower()
+            print()
+            full_sentence = True if response == 'y' else False
+            DS.eval(rule, column, full_sentence)
 
         if command == 'rules':
 
@@ -69,16 +82,14 @@ if __name__ == '__main__':
 
         elif command == 'sample':
 
-            print('Please enter rule to sample from:')
-            rule = input()
+            rule = input('Please enter rule to sample from: ')
             print()
 
             DS.sample_rule_data(rule)
 
         elif command == 'subrules':
 
-            print('Please enter rule to sample from:')
-            rule = input()
+            rule = input('Please enter rule to sample from: ')
             print()
 
             DS.print_subrule_stats(rule)

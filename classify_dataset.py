@@ -9,6 +9,8 @@ from src import rules
 from src.sorted_tag_database import SortedTagDatabase
 from src.datasets import Dataset
 
+from src.util import str_bool
+
 cfg = config.parse()
 L_PARAMS = cfg['language_params']
 M_PARAMS = cfg['morpher_params']
@@ -130,6 +132,11 @@ if __name__ == '__main__':
         help='CSV file within ./data/rules containing rule information',
         required=True)
 
+    parser.add_argument(
+        '--check_rule', metavar='CHECK_RULE', type=str, default='-1',
+        help='if not \'-1\', check what sentences fall under a particular \
+            rule; otherwise, check all rules', required=False)
+
     # ====================================================
     #                   Other parameters
     # ====================================================
@@ -138,6 +145,10 @@ if __name__ == '__main__':
         '--tmp_dir', metavar='TMP_DIR', type=str, default=DIRECTORIES['tmp'],
         help='sub-directory of (./data/tmp/) to write temporary files to',
         required=False)
+
+    parser.add_argument(
+        '--clear', metavar='CLEAR', type=str_bool, default=False,
+        help='if True, clear existing rule/subrule labels in Dataset')
 
     args = parser.parse_args()
 
@@ -187,4 +198,15 @@ if __name__ == '__main__':
         shutil.rmtree(tmp_db_dir)
 
     DS.classify(character_language, token_language, tag_languages,
-                RL=RL, KL=KL, STDB=STDB, tmp_db_dir=tmp_db_dir)
+                RL=RL, KL=KL, STDB=STDB, tmp_db_dir=tmp_db_dir,
+                check_rule=args.check_rule, clear=args.clear)
+
+    response = ''
+
+    while response != 'y' and response != 'n':
+
+        response = input('\nSave data (y/n): ').lower()
+
+    if response == 'y':
+
+        DS.save()

@@ -256,7 +256,7 @@ if __name__ == '__main__':
     if args.fp16:
         gen_args.append('--fp16')
 
-    print(' '.join(gen_args))
+    print('Running command: %s' % ' '.join(gen_args))
 
     gen = subprocess.Popen(gen_args,
                            stdout=subprocess.PIPE)
