@@ -7,7 +7,7 @@
 	python src/config.py
 	```
 
-# Data Synthesis Setup + Model Training
+# Data Synthesis Setup
 
 To setup and run the data synthesis pipeline the following scripts must be executed:
 
@@ -52,18 +52,58 @@ To setup and run the data synthesis pipeline the following scripts must be execu
   - The split data is saved into three new Dataset instances in a user-defined directory
     ```console
     python split_dataset.py --ds_load_dir del_merged --ds_name ex --ds_split_dir del_split
-      ```
+    ```
 
-7. Run the script *train_model.py* from the root directory
+# Model Training and Inference
+
+1. Run the script *train_model.py* from the root directory
   - Requires three Dataset instances (one for each of training/validation/testing) as input
   - The script trains a model in the following fashion:
     - The script first writes each Dataset's paired data to .correct and .error files in a temporary directory
     - It invokes fairseq-preprocess on the .correct and .error files
     - It then invokes fairseq-generate on the preprocessed data and extracts the model hypothesis from the output
-    - Deletes all but the best model epoch and saves the model to the ./models/ directory
+    - Deletes all but the best model epoch and saves the model to the *./models/* directory
+  - Example:
     ```console
     python train_model.py --ds_load_dir del_split --ds_name_train syn_train --ds_name_dev syn_dev --ds_name_test syn_test --command all --model_arch fconv_jp_mini --model_save_dir del
     ```
+2. Run the script *classify_dataset.py* from the root directory
+  - Requires a trained FConv model instance (e.g. a model saved in *./models/model/* would require the flag '--model_load_dir model')
+  - Also takes as input either a saved Dataset instance (with flag '--command ds_generate') or a saved file instance (with flag '--command file_generate')
+    - Input files can be either paired or unpaired and may also be pre-tokenized
+    - Parsing options are controlled with various flags include ('--tokenized', and '--sentence_delimiter')
+  - Writes model corrections to the *./data/model_output/* directory
+  - For example, for an untokenized file with path *./models/test_corpora/test.txt*, and a model in *./models/model/* the following command could be used:
+    ```console
+    python classify_dataset.py --language_dir del --stdb_load_dir del --ds_load_dir teacher --ds_name test --rule_file full.csv
+    ```
+
+# Dataset Testing
+
+1. Run the script *import_dataset.py* from the root directory
+  - Creates a new Dataset instance from a set of error/correct sentence pairs or imports a new column of data to an existing Dataset
+    - For former option, requires file containing error/correct sentence pairs (with flag and option '--ds_action create')
+      - Sentences may have annotations, and can be pre-tokenized
+    - For latter option, requires file containing unpaired sentences (with flag and option '--ds_action' import) and an existing Dataset
+  - For example, to create a new Dataset instance at *./data/datasets/teacher/test.ds* from the annotated file *./data/test_corpora/teacher.txt*, the following command could be used:
+    ```console
+    python import_dataset.py --ds_dir teacher --ds_name test --ds_action create --file_dir data/test_corpora --file_name teacher.txt --annotated True --sentence_delimiter "\t"
+    ```
+
+2. Run the script *clasify_dataset.py* from the root directory
+  - Requires an existing Dataset instance and a rule file
+  - This assigns rule labels to the correct/error phrase pairs of the Dataset according to which rules of the rule file each pair is matched by
+  - This also displays rule coverage (e.g. the number of sentence pairs/unique error phrases covered by each rule)
+  - Example:
+
+
+
+
+
+
+
+
+
 
 # Dataset Manipulation
 

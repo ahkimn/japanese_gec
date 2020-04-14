@@ -636,7 +636,6 @@ class Dataset:
         out_correct = out_correct.difference(
             in_correct).intersection(out_total)
 
-
         print('\n\tIn rule accuracy: %d / %d' % (len(in_correct), len(in_total)))
         print('\tOut of rule accuracy: %d / %d' % (len(out_correct), len(out_total)))
 

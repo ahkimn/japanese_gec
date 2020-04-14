@@ -121,55 +121,53 @@ class TemplateMapping:
 class Rule:
 
     def __init__(self, rule_text: list, header_text: list,
-                 token_language: Language, tag_languages: list):
+                 token_language: Language, tag_languages: list,
+                 token_delimiter: str=',', assert_fully_mapped: bool=False):
 
         self.n_tags = len(tag_languages)
-
         self.name = rule_text[header_text.index(R_PARAMS['name'])]
+        self.token_delimiter = token_delimiter
 
         # Template phrases
         self.template_correct = rule_text[
-            header_text.index(R_PARAMS['template_correct_phrase'])]
+            header_text.index(R_PARAMS['template_correct_phrase'])].replace(
+                self.token_delimiter, '')
         self.template_error = rule_text[
-            header_text.index(R_PARAMS['template_error_phrase'])]
+            header_text.index(R_PARAMS['template_error_phrase'])].replace(
+                self.token_delimiter, '')
 
         self.rule_string = '%s ~ %s' % \
             (self.template_error, self.template_correct)
 
-        # Retrieve unencoded part-of-speech tags of the template correct phrase
-        syntactic_tags = rule_text[
-            header_text.index(R_PARAMS['syntactic_tags'])]
-        syntactic_tags = syntactic_tags.split(',')
-
-        syntactic_tags = np.array(list(languages.parse_node_matrix(
-            syntactic_tags[i * self.n_tags: i * self.n_tags + self.n_tags],
-            tag_languages) for i in range(int(
-                len(syntactic_tags) / self.n_tags))))
+        print('Rule: %s' % self.rule_string)
 
         # Parse template phrases
-        self.tokens_correct, self.tags_correct = parse.parse_full(
+        tokens_correct, tags_correct = parse.parse_full(
             self.template_correct, parse.default_parser(), None)
-        self.tokens_error, self.tags_error = parse.parse_full(
+        tokens_error, tags_error = parse.parse_full(
             self.template_error, parse.default_parser(), None)
+
+        tags_correct = np.array(list(
+            languages.parse_node_matrix(tags, tag_languages)
+            for tags in np.array(tags_correct).T))
+
+        tags_error = np.array(list(
+            languages.parse_node_matrix(tags, tag_languages)
+            for tags in np.array(tags_error).T))
+
+        self.tokens_correct, self.correct_tags = \
+            self._check_tokens_and_tags(tokens_correct, tags_correct,
+                                        rule_text, header_text,
+                                        'correct', tag_languages)
+        self.tokens_error, self.error_tags = \
+            self._check_tokens_and_tags(tokens_error, tags_error,
+                                        rule_text, header_text,
+                                        'error', tag_languages)
 
         # Arrays to index over (tokens for base Rule class,
         #   characters for CharacterRule subclass)
         self.correct = self.tokens_correct.copy()
         self.error = self.tokens_error.copy()
-
-        self.correct_tags = np.array(list(
-            languages.parse_node_matrix(tags, tag_languages)
-            for tags in np.array(self.tags_correct).T))
-
-        self.error_tags = np.array(list(
-            languages.parse_node_matrix(tags, tag_languages)
-            for tags in np.array(self.tags_error).T))
-
-        if not np.array_equal(syntactic_tags, self.correct_tags):
-            self.correct_tags = syntactic_tags
-
-            print('WARNING: Syntactic tags inconsistent with MeCab output')
-            print('\tRule: %s' % self.rule_string)
 
         # Validate Python MeCab tags with text reference
         # assert(np.array_equal(syntactic_tags, self.correct_tags))
@@ -180,8 +178,11 @@ class Rule:
         self.n_correct_tokens = len(self.tokens_correct)
         self.n_error_tokens = len(self.tokens_error)
 
-        self.n_correct = self.n_correct_tokens
-        self.n_error = self.n_error_tokens
+        self.len_correct_tokens = [len(t) for t in self.tokens_correct]
+        self.len_error_tokens = [len(t) for t in self.tokens_error]
+
+        assert(self.correct_tags.shape[0] == self.n_correct_tokens)
+        assert(self.error_tags.shape[0] == self.n_error_tokens)
 
         # Array of arrays denoting hows part-of-speech tags have been selected
         # This is marked as -1 = null, 0 = no match, 1 = match
@@ -189,7 +190,72 @@ class Rule:
         tag_mask = np.array(list(int(j) for j in tag_mask.split(',')))
         self.tag_mask = tag_mask.reshape(-1, self.n_tags)
 
+        assert(self.tag_mask.shape[0] == self.n_correct_tokens)
+
         self.mapping = TemplateMapping(rule_text, header_text)
+
+        if assert_fully_mapped:
+
+            fully_mapped = self._check_full_mapping()
+            if not fully_mapped:
+
+                print(self.mapping.input_indices.keys())
+                print(self.mapping.output_indices.keys())
+
+                raise ValueError('Rule tokens not fully mapped')
+
+        self.n_error_mapping = self.n_error_tokens
+        self.n_correct_mapping = self.n_correct_tokens
+
+    def _check_full_mapping(self):
+
+        mapping_correct = self.mapping.input_indices
+        mapping_error = self.mapping.output_indices
+
+        if set(mapping_correct.keys()) != \
+            set(range(self.n_correct_tokens)) or \
+                set(mapping_error.keys()) != \
+                set(range(self.n_error_tokens)):
+
+            return False
+
+        return True
+
+    def _check_tokens_and_tags(self, tokens: list, syntactic_tags: np.ndarray,
+                               rule_text: list, header_text: list,
+                               phrase: str, tag_languages: list):
+
+        assert(phrase in ['correct', 'error'])
+
+        loaded_tokens = rule_text[
+            header_text.index(R_PARAMS['template_%s_phrase' % phrase])].split(
+                self.token_delimiter)
+
+        if not tokens == loaded_tokens:
+
+            tokens = loaded_tokens
+
+            print('WARNING: Tokens of ' + phrase + ' phrase' +
+                  ' inconsistent with MeCab output')
+
+        # Retrieve unencoded part-of-speech tags of the template correct phrase
+        loaded_tags = rule_text[
+            header_text.index(R_PARAMS['syntactic_tags_%s' % phrase])]
+        loaded_tags = loaded_tags.split(',')
+
+        loaded_tags = np.array(list(languages.parse_node_matrix(
+            loaded_tags[i * self.n_tags: i * self.n_tags + self.n_tags],
+            tag_languages) for i in range(int(
+                len(loaded_tags) / self.n_tags))))
+
+        if not np.array_equal(syntactic_tags, loaded_tags):
+
+            syntactic_tags = loaded_tags
+
+            print('WARNING: Syntactic tags of ' + phrase + ' phrase' +
+                  ' inconsistent with MeCab output')
+
+        return tokens, syntactic_tags
 
     def __str__(self):
 
@@ -204,17 +270,18 @@ class Rule:
         to_print = list()
         to_print.append('Mapping: Error -> Correct')
 
-        for i, t in self.mapping.iterate_output(self.n_error):
+        for i, t in self.mapping.iterate_output(self.n_error_mapping):
 
             operation = t[0]
             error = self.error[i]
             correct = self.correct[t[1]] \
-                if operation != MapOperation.NONE else '*'
+                if (operation != MapOperation.NONE and
+                    operation != MapOperation.INSERTION) else '*'
             to_print.append('%s ~ %s, %s' % (error, correct, operation.name))
 
         to_print.append('Mapping: Correct -> Error')
 
-        for i, t in self.mapping.iterate_input(self.n_correct):
+        for i, t in self.mapping.iterate_input(self.n_correct_mapping):
 
             operation = t[0]
             error = self.error[t[1]] \
@@ -224,16 +291,6 @@ class Rule:
             to_print.append('%s ~ %s, %s' % (correct, error, operation.name))
 
         print('\n'.join(to_print))
-
-    def get_wildcard_indices(self):
-
-        return set(range(self.n_correct)).difference(
-            self.mapping.input_indices.keys())
-
-    # def get_wildcard_indices(self):
-
-    #     return set(range(self.n_error)).difference(
-    #         self.mapping.output_indices.keys())
 
     def convert_phrases(
             self, correct_tokens: np.ndarray, correct_tags: np.ndarray,
@@ -247,7 +304,7 @@ class Rule:
 
         valid_indices = set(range(n_sentences))
 
-        for e_idx, t in self.mapping.iterate_output(self.n_error):
+        for e_idx, t in self.mapping.iterate_output(self.n_error_tokens):
 
             try:
 
@@ -274,9 +331,7 @@ class Rule:
                         if not diff[i]:
                             continue
 
-                        if bin_mask[c_idx, i] or is_sub:
-
-                            error_tags[:, e_idx, i] = e_tags[i]
+                        error_tags[:, e_idx, i] = e_tags[i]
 
                     if is_sub:
                         base_forms = error_tags[:, e_idx, -1]
@@ -383,17 +438,12 @@ class CharacterRule(Rule):
 
         super().__init__(rule_text, header_text, token_language, tag_languages)
 
-        self.n_correct = self.n_correct_characters
-        self.n_error = self.n_error_characters
-
-        self.correct = list(self.template_correct)
-        self.error = list(self.template_error)
-
         self.characters_correct = character_language.parse_nodes(
             self.template_correct)
         self.characters_error = character_language.parse_nodes(
             self.template_error)
 
+        # TODO: Probably have to re-parse
         self.n_error_tokens = 1
 
         # If rule is conjugation-specific, match with characters
@@ -401,7 +451,16 @@ class CharacterRule(Rule):
         self.match_form = not self.tag_mask[0][-2]
         self._verify_wildcard_indices()
 
+        self._get_correct_token_starts()
         self.sub_indices = self._get_sub_indices(character_language, KL)
+
+        self.n_error_mapping = self.n_error_characters
+        self.n_correct_mapping = self.n_correct_characters
+
+    def get_wildcard_indices(self):
+
+        return set(range(self.n_correct_characters)).difference(
+            self.mapping.input_indices.keys())
 
     def _get_first_non_wildcard_index(self):
 
@@ -416,66 +475,110 @@ class CharacterRule(Rule):
 
         return -1
 
+    def _get_correct_token_starts(self):
+
+        self.correct_token_starts = [0]
+        self.correct_token_ends = []
+        for i in range(self.n_correct_tokens - 1):
+            self.correct_token_starts.append(
+                self.correct_token_starts[-1] + self.len_correct_tokens[i])
+            self.correct_token_ends.append(self.correct_token_starts[-1])
+        self.correct_token_ends.append(self.n_correct_characters)
+
+        self.char_to_token_index = dict()
+        t_idx = 0
+        for i in range(self.n_correct_characters):
+            if i >= self.correct_token_ends[t_idx]:
+                t_idx += 1
+            self.char_to_token_index[i] = t_idx
+
     def _verify_wildcard_indices(self):
 
-        self.left_offset = 0
-        self.right_offset = self.n_correct
+        self.left_offsets = []
+        self.right_offsets = []
+        self.n_matched_indices = []
+        self.match_types = []
 
         w_i = self.get_wildcard_indices()
 
-        self.n_matched_indices = self.n_correct - len(w_i)
+        token_start = 0
 
-        for i in range(self.n_correct):
+        for i in range(self.n_correct_tokens):
 
-            if i in w_i:
-                self.left_offset += 1
+            n_characters = self.len_correct_tokens[i]
+            token_end = token_start + n_characters
+
+            left_offset = 0
+            right_offset = n_characters
+
+            token_chars = set(range(token_start, token_end))
+            matched_indices = token_chars.intersection(w_i)
+
+            self.n_matched_indices.append(n_characters - len(matched_indices))
+
+            for i in range(n_characters):
+
+                if i - token_start in matched_indices:
+                    left_offset += 1
+                else:
+                    break
+
+            for i in range(n_characters)[::-1]:
+
+                if i - token_start in matched_indices:
+                    self.right_offset -= 1
+                else:
+                    break
+
+            # Make sure no wildcard indices exist in middle of token
+            assert(all(i - token_start < left_offset or
+                       i - token_start >= right_offset
+                       for i in matched_indices))
+
+            if left_offset == 0 and right_offset == n_characters:
+                self.match_types.append(MatchType.FULL_MATCH)
+
+            elif left_offset != 0 and right_offset == n_characters:
+                self.match_types.append(MatchType.RIGHT_MATCH)
+
+            elif left_offset == 0 and right_offset != n_characters:
+                self.match_types.append(MatchType.LEFT_MATCH)
+
             else:
-                break
+                self.match_types.append(MatchType.ANY_MATCH)
 
-        for i in range(self.n_correct)[::-1]:
+            self.left_offsets.append(left_offset)
+            self.right_offsets.append(right_offset)
+            token_start = token_end
 
-            if i in w_i:
-                self.right_offset -= 1
-            else:
-                break
+    def _get_match_indices(self, character_language: Language, KL: KanaList):
 
-        # Make sure no wildcard indices exist in middle of template phrase
-        assert(all(i < self.left_offset or i >= self.right_offset
-                   for i in w_i))
+        print(self.char_to_token_index)
 
-        if self.left_offset == 0 and self.right_offset == self.n_correct:
-            self.match_type = MatchType.FULL_MATCH
+        match_indices = []
+        sub_indices = []
 
-        elif self.left_offset != 0 and self.right_offset == self.n_correct:
-            self.match_type = MatchType.RIGHT_MATCH
+        token_match_indices = []
+        token_sub_indices = []
 
-        elif self.left_offset == 0 and self.right_offset != self.n_correct:
-            self.match_type = MatchType.LEFT_MATCH
-
-        else:
-            self.match_type = MatchType.ANY_MATCH
-
-    def _get_sub_indices(self, character_language: Language, KL: KanaList):
-
-        sub_template = \
-            self.characters_correct[self.left_offset:self.right_offset]
-
-        ret = []
-        ret.append(sub_template)
-
-        for c_idx, t in self.mapping.iterate_input(self.n_correct):
+        for c_idx, t in self.mapping.iterate_input(self.n_correct_characters):
 
             operation = t[0]
             start = self.correct[c_idx]
             edit = self.error[t[1]]
+
+            template_idx = c_idx - self.left_offset
+            sub_indices = set([sub_template[template_idx]])
+
+            if operation != MapOperation.NONE:
+
+                pass
 
             if operation == MapOperation.SUBSTITUTION:
 
                 shift_type = KL.get_character_shift(start, edit)
 
                 if shift_type == CharacterShift.CROSS_ROW:
-
-                    template_idx = c_idx - self.left_offset
 
                     for k in KL.get_same_col(start, include_original=False):
 
@@ -484,18 +587,22 @@ class CharacterRule(Rule):
 
                             pass
 
-                        sub = sub_template[:]
-                        sub[template_idx] = character_language.add_node(k)
+                        sub_indices.add(character_language.add_node(k))
 
-                        ret.append(sub)
+            ret.append(sub_indices)
 
         return ret
 
     def match_characters(self, characters: np.ndarray, lengths: np.ndarray):
 
         max_char = characters.shape[-1]
+        n_diff = self.n_correct_tokens - 1
+        ret_shape = (lengths.shape[0], lengths.shape[1] - n_diff)
 
-        ret = np.zeros(lengths.shape, dtype='bool')
+        ret = np.zeros(ret_shape, dtype='bool')
+        print(lengths.shape)
+        print(characters.shape)
+        raise
 
         for match_indices in self.sub_indices:
 
@@ -563,6 +670,8 @@ class CharacterRule(Rule):
                         token_language: Language,
                         form_language: Language,
                         KL: KanaList):
+
+        raise
 
         n_sentences = correct_tokens.shape[0]
         diff = self.n_error - self.n_correct
@@ -730,13 +839,17 @@ class RuleList:
                 rule_type = line[header.index(R_PARAMS['rule_type'])]
 
                 if rule_type == R_PARAMS['type_token']:
-                    rule = Rule(line, header, token_language, tag_languages)
+                    rule = Rule(line, header, token_language, tag_languages,
+                                assert_fully_mapped=True)
 
                 elif rule_type == R_PARAMS['type_character']:
                     rule = CharacterRule(line, header, character_language,
                                          token_language, tag_languages, KL=KL)
 
                 self.rule_dict[rule.name] = rule
+
+            # if line_count > 1:
+            #     break
 
     def get_rule(self, name):
 

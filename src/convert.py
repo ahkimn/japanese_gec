@@ -3,6 +3,7 @@ import re
 
 from . import config
 from . import parse
+from . import util
 
 cfg = config.parse()
 
@@ -15,7 +16,6 @@ def parse_fairseq_output(input_file: str, output_delimiter: str=' ',
     f_in = open(input_file, 'r')
 
     mdl_header = re.compile(r'H-\d+')
-
     multispace = re.compile(r'\s+')
 
     data = f_in.readlines()
@@ -112,7 +112,16 @@ def process_file(
 
         n_lines += 1
 
-        if len(line_sentences) == 1:
+        print('Parsed line %d: %s' %
+              (n_lines,
+               '\t'.join(' '.join(t for t in sentence)
+                         for sentence in line_sentences)))
+
+        if len(line_sentences) == 0:
+
+            print('WARNING: Line: %d contains no sentences' % n_lines)
+
+        elif len(line_sentences) == 1:
 
             error_data.append(line_sentences[0])
             correct_data.append([''])
@@ -154,6 +163,7 @@ def write_output_file(file_path, sentence_lists: list,
             each sentence
     """
 
+    util.mkdir_p(file_path, file=True, verbose=True)
     f_out = open(file_path, 'w')
 
     n_series = len(sentence_lists)

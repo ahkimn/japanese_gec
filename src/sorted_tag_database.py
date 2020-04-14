@@ -478,21 +478,30 @@ class SortedTagDatabase:
         form_info = form_token.get(form, None)
 
         valid_tokens = set()
+        best_n_tags_equal = 0
 
         if form_info is None:
             return None
 
         for tags in form_info.keys():
 
+            n_tags = len(tags)
             valid = True
+
+            tags_equal = [tags[i] == match_tags[i] for i in range(n_tags)]
+            n_tags_equal = sum(tags_equal)
 
             for idx in match_indices:
 
-                if tags[idx] != match_tags[idx]:
+                if not tags_equal[idx]:
 
                     valid = False
 
             if valid:
+
+                if n_tags_equal > best_n_tags_equal:
+                    best_n_tags_equal = n_tags_equal
+                    valid_tokens = set()
 
                 for token in form_info[tags]:
 

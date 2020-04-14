@@ -150,7 +150,8 @@ if __name__ == '__main__':
         'rule_type': 'Rule Type',
         'type_token': 'Token',
         'type_character': 'Character',
-        'syntactic_tags': 'Mecab Output',
+        'syntactic_tags_correct': 'Correct Phrase Syntactic Tags',
+        'syntactic_tags_error': 'Error Phrase Syntactic Tags',
         'syntactic_tag_mask': 'Requisite Syntactic Tags',
         'template_correct_phrase': 'Template Correct Phrase',
         'template_error_phrase': 'Template Error Phrase',
@@ -172,4 +173,3 @@ if __name__ == '__main__':
 
     with open(CONFIG_FILE, 'w+') as f_config:
         yaml.dump(cfg, f_config)
-

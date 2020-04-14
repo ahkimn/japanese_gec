@@ -237,6 +237,16 @@ if __name__ == '__main__':
         help='prefix preceding rule name in filenames of saved Dataset \
             instances. If empty string no prefix is used.', required=False)
 
+    # ====================================================
+    #               Other parameters
+    # ====================================================
+
+    parser.add_argument(
+        '--suppress_errors', metavar='SUPPRESS',
+        default=False, type=str_bool,
+        help='if True, suppress any exceptions raised during generation',
+        required=False)
+
     args = parser.parse_args()
 
     rule_file = os.path.join(DIRECTORIES['rules'], args.rule_file)
@@ -303,22 +313,39 @@ if __name__ == '__main__':
 
         util.mkdir_p(save_dir)
 
+    seed_perm = RS.permutation(1000)
+
+    n_rule = -1
+
     for rule, idx in rl.iterate_rules(args.gen_rule):
 
+        n_rule += 1
         print('\n\n')
         rl.print_rule(idx)
         print(cfg['BREAK_LINE'])
 
-        matches = match.match_correct(rule, db, stdb, RS=RS)
-        gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \
-            gen_rules, gen_subrules, _ = \
-            generate.generate_synthetic_pairs(stdb, token_language,
-                                              tag_languages, rule, matches,
-                                              KL=KL)
+        try:
 
-        DS = Dataset.import_data(gen_error, gen_correct,
-                                 gen_error_bounds, gen_correct_bounds,
-                                 gen_rules, gen_subrules)
+            RS_match = np.random.RandomState(seed=seed_perm[n_rule % 1000])
+
+            matches = match.match_correct(rule, db, stdb, RS=RS)
+            gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \
+                gen_rules, gen_subrules, _ = \
+                generate.generate_synthetic_pairs(stdb, token_language,
+                                                  tag_languages, rule, matches,
+                                                  KL=KL)
+
+            DS = Dataset.import_data(gen_error, gen_correct,
+                                     gen_error_bounds, gen_correct_bounds,
+                                     gen_rules, gen_subrules)
+
+        except ValueError:
+
+            if args.suppress_error:
+                continue
+
+            else:
+                raise
 
         if args.manual_check:
 
