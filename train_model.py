@@ -70,6 +70,11 @@ if __name__ == '__main__':
         required=False)
 
     parser.add_argument(
+        '--cpu', metavar='CUDA', default=True, type=str_bool,
+        help='if True, use the CPU instead of CUDA',
+        required=False)
+
+    parser.add_argument(
         '--n_words_model', metavar='N_WORDS_MODEL',
         default=MDL_PARAMS['dictionary_size'], help='number of tokens \
         to use in model training', required=False)
@@ -171,13 +176,13 @@ if __name__ == '__main__':
 
         output = prep.communicate()[0]
 
-    if command == 'train' or command == 'all':
+    if command == 'train' or command == 'all':\
 
         if os.path.isdir(model_save_dir):
 
             print('WARNING: Model directory exists')
             dec = input('\tDelete model_dir (y/n)?:')
-            if dec.lower == 'y':
+            if dec.lower() == 'y':
                 shutil.rmtree(model_save_dir)
             else:
                 raise ValueError('Model directory not empty')
@@ -190,6 +195,9 @@ if __name__ == '__main__':
                   '--save-dir', model_save_dir,
                   '--batch-size', str(args.batch_size),
                   '--arch', args.model_arch]
+
+        if args.cpu:
+            t_args.append('--cpu')
 
         if args.cuda != -1:
             os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
