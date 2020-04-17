@@ -50,6 +50,7 @@ class MatchType(Enum):
     RIGHT_MATCH = 1
     LEFT_MATCH = 2
     ANY_MATCH = 3
+    NO_MATCH = 4
 
 
 class TemplateMapping:
@@ -80,22 +81,22 @@ class TemplateMapping:
         self.input_indices = dict()
 
         for i in self.inserted:
-            self.output_indices[i] = (MapOperation.INSERTION, -1)
+            self._update_output(MapOperation.INSERTION, i, -1)
 
         for i in self.deleted:
-            self.input_indices[i] = (MapOperation.DELETION, -1)
+            self._update_input(MapOperation.DELETION, i, -1)
 
         for i in self.modified:
-            self.output_indices[i[0]] = (MapOperation.MODIFICATION, i[1])
-            self.input_indices[i[1]] = (MapOperation.MODIFICATION, i[0])
+            self._update_output(MapOperation.MODIFICATION, i[0], i[1])
+            self._update_input(MapOperation.MODIFICATION, i[1], i[0])
 
         for i in self.preserved:
-            self.output_indices[i[0]] = (MapOperation.PRESERVATION, i[1])
-            self.input_indices[i[1]] = (MapOperation.PRESERVATION, i[0])
+            self._update_output(MapOperation.PRESERVATION, i[0], i[1])
+            self._update_input(MapOperation.PRESERVATION, i[1], i[0])
 
         for i in self.substituted:
-            self.output_indices[i[0]] = (MapOperation.SUBSTITUTION, i[1])
-            self.input_indices[i[1]] = (MapOperation.SUBSTITUTION, i[0])
+            self._update_output(MapOperation.SUBSTITUTION, i[0], i[1])
+            self._update_input(MapOperation.SUBSTITUTION, i[1], i[0])
 
     def get_output_length(self):
 
@@ -105,15 +106,31 @@ class TemplateMapping:
 
         return max(self.input_indices.keys()) if self.output_indices else 0
 
-    def iterate_output(self, n):
+    def _update_input(self, operation, input_index, output_index):
 
-        for i in range(n):
+        if input_index != -1 and input_index in self.input_indices.keys():
+            print('WARNING: Input index: %d doubly specified' % input_index)
+
+        self.input_indices[input_index] = (operation, output_index)
+
+    def _update_output(self, operation, output_index, input_index):
+
+        if output_index != -1 and output_index in self.output_indices.keys():
+            raise ValueError('Output index: %d doubly specified' %
+                             output_index)
+
+        else:
+            self.output_indices[output_index] = (operation, input_index)
+
+    def iterate_output(self, n: int, start: int=0):
+
+        for i in range(start, n):
 
             yield i, self.output_indices.get(i, (MapOperation.NONE, -1))
 
-    def iterate_input(self, n):
+    def iterate_input(self, n: int, start: int=0):
 
-        for i in range(n):
+        for i in range(start, n):
 
             yield i, self.input_indices.get(i, (MapOperation.NONE, -1))
 
@@ -163,11 +180,6 @@ class Rule:
             self._check_tokens_and_tags(tokens_error, tags_error,
                                         rule_text, header_text,
                                         'error', tag_languages)
-
-        # Arrays to index over (tokens for base Rule class,
-        #   characters for CharacterRule subclass)
-        self.correct = self.tokens_correct.copy()
-        self.error = self.tokens_error.copy()
 
         # Validate Python MeCab tags with text reference
         # assert(np.array_equal(syntactic_tags, self.correct_tags))
@@ -273,8 +285,8 @@ class Rule:
         for i, t in self.mapping.iterate_output(self.n_error_mapping):
 
             operation = t[0]
-            error = self.error[i]
-            correct = self.correct[t[1]] \
+            error = self.template_error[i]
+            correct = self.template_correct[t[1]] \
                 if (operation != MapOperation.NONE and
                     operation != MapOperation.INSERTION) else '*'
             to_print.append('%s ~ %s, %s' % (error, correct, operation.name))
@@ -284,10 +296,10 @@ class Rule:
         for i, t in self.mapping.iterate_input(self.n_correct_mapping):
 
             operation = t[0]
-            error = self.error[t[1]] \
+            error = self.template_error[t[1]] \
                 if (operation != MapOperation.NONE and
                     operation != MapOperation.DELETION) else '*'
-            correct = self.correct[i]
+            correct = self.template_correct[i]
             to_print.append('%s ~ %s, %s' % (correct, error, operation.name))
 
         print('\n'.join(to_print))
@@ -300,7 +312,7 @@ class Rule:
 
         n_sentences = correct_tokens.shape[0]
         bin_mask = (self.tag_mask > 0)
-        indices_error = token_language.parse_nodes(self.error)
+        indices_error = token_language.parse_nodes(self.tokens_error)
 
         valid_indices = set(range(n_sentences))
 
@@ -443,16 +455,18 @@ class CharacterRule(Rule):
         self.characters_error = character_language.parse_nodes(
             self.template_error)
 
-        # TODO: Probably have to re-parse
-        self.n_error_tokens = 1
+        # Rule generates on per-token basis
+        self.n_error_tokens = self.n_correct_tokens
 
         # If rule is conjugation-specific, match with characters
         # Otherwise, match with base_form
-        self.match_form = not self.tag_mask[0][-2]
-        self._verify_wildcard_indices()
+        self.match_forms = [self.tag_mask[j][-2] != 1
+                            for j in range(self.n_correct_tokens)]
 
         self._get_correct_token_starts()
-        self.sub_indices = self._get_sub_indices(character_language, KL)
+        self._verify_wildcard_indices()
+
+        self._get_sub_characters(character_language, KL)
 
         self.n_error_mapping = self.n_error_characters
         self.n_correct_mapping = self.n_correct_characters
@@ -461,19 +475,6 @@ class CharacterRule(Rule):
 
         return set(range(self.n_correct_characters)).difference(
             self.mapping.input_indices.keys())
-
-    def _get_first_non_wildcard_index(self):
-
-        for c_idx, t in self.mapping.iterate_input(self.n_correct):
-
-            operation = t[0]
-
-            if operation == MapOperation.DELETION \
-                    or operation == MapOperation.PRESERVATION:
-
-                return c_idx
-
-        return -1
 
     def _get_correct_token_starts(self):
 
@@ -485,7 +486,7 @@ class CharacterRule(Rule):
             self.correct_token_ends.append(self.correct_token_starts[-1])
         self.correct_token_ends.append(self.n_correct_characters)
 
-        self.char_to_token_index = dict()
+        self.char_to_token_index = {-1: -1}
         t_idx = 0
         for i in range(self.n_correct_characters):
             if i >= self.correct_token_ends[t_idx]:
@@ -501,12 +502,11 @@ class CharacterRule(Rule):
 
         w_i = self.get_wildcard_indices()
 
-        token_start = 0
-
         for i in range(self.n_correct_tokens):
 
             n_characters = self.len_correct_tokens[i]
-            token_end = token_start + n_characters
+            token_start = self.correct_token_starts[i]
+            token_end = self.correct_token_ends[i]
 
             left_offset = 0
             right_offset = n_characters
@@ -516,17 +516,17 @@ class CharacterRule(Rule):
 
             self.n_matched_indices.append(n_characters - len(matched_indices))
 
-            for i in range(n_characters):
+            for j in range(n_characters):
 
-                if i - token_start in matched_indices:
+                if j + token_start in matched_indices:
                     left_offset += 1
                 else:
                     break
 
-            for i in range(n_characters)[::-1]:
+            for j in range(n_characters)[::-1]:
 
-                if i - token_start in matched_indices:
-                    self.right_offset -= 1
+                if j + token_start in matched_indices:
+                    right_offset -= 1
                 else:
                     break
 
@@ -544,76 +544,142 @@ class CharacterRule(Rule):
             elif left_offset == 0 and right_offset != n_characters:
                 self.match_types.append(MatchType.LEFT_MATCH)
 
+            elif matched_indices == token_chars:
+                self.match_types.append(MatchType.NO_MATCH)
+                # Make sure that unmatched tokens are present
+                #   completely in error
+                assert(self.tokens_correct[i] in self.template_error)
+
             else:
                 self.match_types.append(MatchType.ANY_MATCH)
 
             self.left_offsets.append(left_offset)
             self.right_offsets.append(right_offset)
-            token_start = token_end
 
-    def _get_match_indices(self, character_language: Language, KL: KanaList):
+    def _get_sub_characters(self, character_language: Language, KL: KanaList):
 
-        print(self.char_to_token_index)
+        self.sub_characters = []
+        self.search_characters = []
+        self.search_masks = []
+        self.search_indices = []
 
-        match_indices = []
-        sub_indices = []
+        for i in range(self.n_correct_tokens):
 
-        token_match_indices = []
-        token_sub_indices = []
+            token_start = self.correct_token_starts[i]
+            token_end = self.correct_token_ends[i]
 
-        for c_idx, t in self.mapping.iterate_input(self.n_correct_characters):
+            token_sub_characters = []
+            token_search_characters = []
+            token_search_mask = []
+            token_search_indices = []
 
-            operation = t[0]
-            start = self.correct[c_idx]
-            edit = self.error[t[1]]
+            for c_idx, t in self.mapping.iterate_input(
+                    self.n_correct_characters):
 
-            template_idx = c_idx - self.left_offset
-            sub_indices = set([sub_template[template_idx]])
+                operation = t[0]
 
-            if operation != MapOperation.NONE:
+                if c_idx < token_start or c_idx >= token_end \
+                        or operation == MapOperation.NONE:
+                    continue
 
-                pass
+                idx_start = self.characters_correct[c_idx]
+                char_start = self.template_correct[c_idx]
+                char_edit = self.template_error[t[1]]
 
-            if operation == MapOperation.SUBSTITUTION:
+                index_sub_characters = set()
+                shift_type = KL.get_character_shift(char_start, char_edit)
+                token_search_characters.append(idx_start)
+                token_search_indices.append(c_idx - token_start)
 
-                shift_type = KL.get_character_shift(start, edit)
+                # TODO: Force substitutiosn to be CROSS_ROW/CROSS_COLUMN
+                #   Arbitrary subtitutions should be INSERT/DELETE pairs
+                if operation == MapOperation.SUBSTITUTION \
+                        and shift_type == CharacterShift.CROSS_ROW:
 
-                if shift_type == CharacterShift.CROSS_ROW:
+                    token_search_mask.append(False)
 
-                    for k in KL.get_same_col(start, include_original=False):
+                    for k in KL.get_same_col(char_start,
+                                             include_original=True):
 
                         # Only do single character kana
                         if len(k) > 1:
 
                             pass
 
-                        sub_indices.add(character_language.add_node(k))
+                        index_sub_characters.add(
+                            character_language.add_node(k))
 
-            ret.append(sub_indices)
+                else:
 
-        return ret
+                    token_search_mask.append(True)
 
-    def match_characters(self, characters: np.ndarray, lengths: np.ndarray):
+                token_sub_characters.append(index_sub_characters)
 
-        max_char = characters.shape[-1]
-        n_diff = self.n_correct_tokens - 1
-        ret_shape = (lengths.shape[0], lengths.shape[1] - n_diff)
+            assert(self.n_matched_indices[i] == len(token_search_indices))
 
-        ret = np.zeros(ret_shape, dtype='bool')
-        print(lengths.shape)
-        print(characters.shape)
-        raise
+            self.sub_characters.append(token_sub_characters)
+            self.search_characters.append(
+                np.array(token_search_characters, dtype=np.uint32))
+            self.search_masks.append(
+                np.array(token_search_mask, dtype=np.bool))
+            self.search_indices.append(token_search_indices)
 
-        for match_indices in self.sub_indices:
+    def match_characters(
+            self, form_characters: np.ndarray, form_lengths: np.ndarray,
+            token_characters: np.ndarray, token_lengths: np.ndarray):
 
-            match_array = util.search_2d(
-                characters.reshape(-1, max_char), match_indices)
+        _, max_len, max_char = form_characters.shape
 
-            n_indices = len(match_indices)
+        # Place token axis first for easier readability
+        form_characters = form_characters.swapaxes(0, 1)
+        form_lengths = form_lengths.swapaxes(0, 1)
+
+        token_characters = token_characters.swapaxes(0, 1)
+        token_lengths = token_lengths.swapaxes(0, 1)
+
+        ret_len = max_len - self.n_correct_tokens + 1
+        ret = np.ones((ret_len, form_characters.shape[1]), dtype=np.bool)
+
+        # Match characters for each token
+        for i in range(self.n_correct_tokens):
+
+            search_start = i
+            search_end = max_len - (self.n_correct_tokens - i - 1)
+
+            match_mask = self.search_masks[i]
+            match_characters = self.search_characters[i]
+
+            n_indices = len(match_characters)
+
+            # Skip character filtering if token has no characters to match
+            if n_indices == 0:
+                continue
+
+            if self.match_forms[i]:
+
+                # Limit search using phrase length
+                search_characters = \
+                    form_characters[search_start:search_end,
+                                    :, :].reshape(-1, max_char)
+                search_lengths = \
+                    form_lengths[search_start:search_end, :]
+
+            else:
+
+                # Limit search using phrase length
+                search_characters = \
+                    token_characters[search_start:search_end,
+                                     :, :].reshape(-1, max_char)
+                search_lengths = \
+                    token_lengths[search_start:search_end, :]
+
+            match_array = util.search_2d_masked(
+                search_characters, match_characters, match_mask)
+
             n_matches = np.sum(match_array, axis=1)
 
             # Ignore cases with multiple matches (for simplicity)
-            if self.match_type == MatchType.ANY_MATCH:
+            if self.match_types[i] == MatchType.ANY_MATCH:
 
                 valid = np.where(n_matches == 1)[0]
 
@@ -623,46 +689,70 @@ class CharacterRule(Rule):
                 valid = np.where(n_matches > 0)[0]
 
             valid_matches = match_array[valid]
-            valid_lengths = lengths.reshape(-1)[valid]
+            valid_lengths = search_lengths.reshape(-1)[valid]
 
-            if self.match_type == MatchType.RIGHT_MATCH:
+            if self.match_types[i] == MatchType.RIGHT_MATCH:
 
                 # Match last match
-                index = max_char - \
+                match_index = max_char - \
                     np.argmax(np.flip(valid_matches, axis=1), axis=1) \
                     - n_indices
 
             else:
 
                 # Match first match
-                index = np.argmax(valid_matches, axis=1)
+                match_index = np.argmax(valid_matches, axis=1)
 
-            match_end = index + n_indices
+            match_end = match_index + n_indices
 
             f1 = (match_end == valid_lengths)
-            f2 = (index == 0)
+            f2 = (match_index == 0)
 
             # Match full token
-            if self.match_type == MatchType.FULL_MATCH:
+            if self.match_types[i] == MatchType.FULL_MATCH:
 
-                valid = valid[np.where(np.logical_and(f1, f2))]
+                f3 = np.logical_and(f1, f2)
+
+                valid = valid[np.where(f3)]
+                match_index = match_index[np.where(f3)]
 
             # Match on right side of token
-            elif self.match_type == MatchType.RIGHT_MATCH:
+            elif self.match_types[i] == MatchType.RIGHT_MATCH:
 
                 valid = valid[np.where(f1)]
+                match_index = match_index[np.where(f1)]
 
             # Match on left side of token
-            elif self.match_type == MatchType.LEFT_MATCH:
+            elif self.match_types[i] == MatchType.LEFT_MATCH:
 
                 valid = valid[np.where(f2)]
+                match_index = match_index[np.where(f2)]
 
-            match = np.zeros(lengths.size, dtype='bool')
+            n_valid = len(valid)
+            sub_valid = np.ones(n_valid, dtype=np.bool)
+
+            # Check if characters in substitutions are valid
+            #   Outside of main search loop for efficiency
+            for j in range(n_indices):
+
+                sub_characters = self.sub_characters[i][j]
+
+                if not sub_characters:
+                    continue
+                check_chars = search_characters[valid, :]
+                check_indices = match_index + j
+
+                for k in range(n_valid):
+                    if check_chars[k][check_indices[k]] not in sub_characters:
+                        sub_valid[k] = False
+
+            valid = valid[np.where(sub_valid)]
+            match = np.zeros(search_lengths.size, dtype='bool')
             match[valid] = True
 
-            ret = np.logical_or(ret, match.reshape(lengths.shape))
+            ret = np.logical_and(ret, match.reshape(search_lengths.shape))
 
-        return ret
+        return ret.swapaxes(0, 1)
 
     def convert_phrases(self, correct_tokens: np.ndarray,
                         error_tokens: np.ndarray,
@@ -671,136 +761,200 @@ class CharacterRule(Rule):
                         form_language: Language,
                         KL: KanaList):
 
-        raise
-
         n_sentences = correct_tokens.shape[0]
-        diff = self.n_error - self.n_correct
+        diff = self.n_error_characters - self.n_correct_characters
 
         valid_indices = set(range(n_sentences))
-        first_index = self._get_first_non_wildcard_index()
 
-        for j in range(n_sentences):
+        for i in range(n_sentences):
+
+            phrase_diff = 0
+            parsed_e_idx = 0
 
             try:
 
-                correct_token = token_language.parse_indices(
-                    correct_tokens[j], delimiter='')
-                correct_form = form_language.parse_indices(correct_forms[j],
-                                                           delimiter='')
+                for j in range(self.n_correct_tokens):
 
-                # # Make sure matched phrase contains enough characters
-                # assert(len(correct_token) >= self.n_matched_indices)
+                    n_wildcard = self.len_correct_tokens[j] - \
+                        len(self.search_indices[j])
+                    token_start = self.correct_token_starts[j]
 
-                if self.match_form:
+                    # # Make sure matched phrase contains enough characters
+                    # assert(len(correct_token) >= self.n_matched_indices)
 
-                    correct = correct_form
+                    correct_token = token_language.parse_index(
+                        correct_tokens[i][j])
+                    correct_form = form_language.parse_index(
+                        correct_forms[i][j])
 
-                    # Poor way of filtering
-                    # TODO: Make this not fail on edge cases
-                    #  (e.g. volitional form when matching verb tokens)
-                    c_off = correct.index(correct_token)
+                    if self.match_forms[j] and \
+                            self.match_types[j] != MatchType.NO_MATCH:
 
-                    if c_off != 0:
+                        correct = correct_form
 
-                        assert (c_off + len(correct_token) == len(correct))
+                        # Poor way of filtering
+                        # TODO: Make this not fail on edge cases
+                        #  (e.g. volitional form when matching verb tokens)
+                        if correct_token not in correct:
+                            raise ValueError('Form matching failed')
+                        c_off = correct.index(correct_token)
+
+                        if c_off != 0:
+
+                            assert (c_off + len(correct_token) == len(correct))
+                            e_off = 0
+
+                        else:
+
+                            e_off = len(correct) - len(correct_token)
+
+                    else:
+
+                        correct = correct_token
+                        c_off = 0
                         e_off = 0
 
+                    align_offset = self.left_offsets[j]
+
+                    if self.match_types[j] == MatchType.FULL_MATCH:
+
+                        edit = correct[:]
+                        error = ''
+
+                    elif self.match_types[j] == MatchType.RIGHT_MATCH:
+
+                        edit = correct[-self.n_matched_indices[j]:]
+                        error = correct[:-self.n_matched_indices[j]]
+
+                    elif self.match_types[j] == MatchType.LEFT_MATCH:
+
+                        edit = correct[:self.n_matched_indices[j]]
+                        error = ''
+
+                    elif self.match_types[j] == MatchType.NO_MATCH:
+
+                        error = correct[:]
+                        edit = ''
+
+                    # When token matching does not occur at token boundaries,
+                    #   align matched token with correct token by searching
+                    #   for common characters
                     else:
 
-                        e_off = len(correct) - len(correct_token)
+                        valid_align = False
 
-                else:
+                        for k in range(self.n_matched_indices[j]):
 
-                    correct = correct_token
-                    c_off = 0
-                    e_off = 0
+                            # Operation must be non-morphing substitution
+                            if not self.search_masks[j][k]:
+                                continue
 
-                align_offset = self.left_offset
+                            # Offset of the alignment character in correct token
+                            t_offset = self.search_indices[j][k]
+                            align_char = self.tokens_correct[j][t_offset]
 
-                if self.match_type == MatchType.FULL_MATCH:
+                            if align_char not in correct:
+                                continue
+                            # Cause exception here
+                            align_index = correct.index(align_char)
+                            align_offset = align_index - \
+                                (t_offset - self.left_offsets[j])
 
-                    edit = correct[:]
-                    error = []
+                            edit = correct[align_offset:align_offset +
+                                           self.n_matched_indices[j]]
+                            error = correct[:align_offset]
+                            valid_align = True
 
-                elif self.match_type == MatchType.RIGHT_MATCH:
+                        if not valid_align:
+                            raise ValueError('No alignment for token %s found'
+                                             % correct)
 
-                    edit = correct[-self.n_matched_indices:]
-                    error = correct[:-self.n_matched_indices]
+                    parsed_wildcard = 0
 
-                elif self.match_type == MatchType.LEFT_MATCH:
+                    # print('CORRECT: %s' % correct)
 
-                    edit = correct[:self.n_matched_indices]
-                    error = []
+                    for e_idx, t in self.mapping.iterate_output(
+                            self.n_error_characters):
 
-                else:
+                        operation = t[0]
+                        c_idx = t[1]
+                        edit_index = c_idx - (token_start + align_offset)
 
-                    align_char = self.correct[first_index]
-                    align_index = correct.index(align_char)
-                    align_offset = align_index - \
-                        (first_index - self.left_offset)
-                    edit = correct[align_offset:align_offset +
-                                   self.n_matched_indices]
-                    error = correct[:align_offset]
+                        # print(n_wildcard, parsed_wildcard)
+                        # print(e_idx, parsed_e_idx, operation)
 
-                for e_idx, t in self.mapping.iterate_output(self.n_error):
+                        if e_idx < parsed_e_idx:
 
-                    operation = t[0]
-                    c_idx = t[1]
-                    edit_index = c_idx - align_offset
+                            continue
 
-                    if operation == MapOperation.INSERTION:
+                        elif (operation != MapOperation.INSERTION and
+                              operation != MapOperation.NONE) and \
+                                self.char_to_token_index[c_idx] != j:
 
-                        error += self.error[e_idx]
+                            continue
 
-                    # TODO: Clarify if this is necessary for character rules
-                    elif operation == MapOperation.MODIFICATION:
+                        elif operation == MapOperation.INSERTION:
 
-                        raise ValueError
+                            if parsed_e_idx != e_idx:
 
-                    elif operation == MapOperation.PRESERVATION:
+                                continue
 
-                        error += edit[edit_index]
+                            error += self.template_error[e_idx]
 
-                    elif operation == MapOperation.SUBSTITUTION:
+                        elif operation == MapOperation.PRESERVATION:
 
-                        # TODO: Make this more comprehensive
-                        #   (i.e. same row/column tokens)
-                        error += KL.convert_kana(
-                            edit[edit_index],
-                            self.correct[c_idx],
-                            self.error[e_idx])
+                            error += edit[edit_index]
 
-                    elif operation == MapOperation.DELETION:
+                        elif operation == MapOperation.SUBSTITUTION:
 
-                        continue
+                            # TODO: Make this more comprehensive
+                            #   (i.e. same row/column tokens)
+                            error += KL.convert_kana(
+                                edit[edit_index],
+                                self.template_correct[c_idx],
+                                self.template_error[e_idx])
 
-                    # Null Operations
-                    else:
+                        elif operation == MapOperation.NONE:
 
-                        continue
+                            if parsed_wildcard >= n_wildcard:
 
-                if self.match_type == MatchType.LEFT_MATCH:
+                                break
 
-                    error += correct[self.n_matched_indices:]
+                            parsed_wildcard += 1
 
-                elif self.match_type == MatchType.ANY_MATCH:
+                        else:
 
-                    error += \
-                        correct[align_offset + self.n_matched_indices:]
+                            raise ValueError("Invalid operation type present")
 
-                error = ''.join(error)
-                e_off = len(error) - e_off
-                error = error[c_off:e_off]
+                        parsed_e_idx += 1
+                        # print("INCREMENT")
 
-                assert(len(error) == len(correct_token) + diff)
-                error_tokens[j][0] = token_language.add_node(error)
+                    if self.match_types[j] == MatchType.LEFT_MATCH:
+
+                        error += correct[self.n_matched_indices[j]:]
+
+                    elif self.match_types[j] == MatchType.ANY_MATCH:
+
+                        error += \
+                            correct[align_offset + self.n_matched_indices[j]:]
+
+                    e_off = len(error) - e_off
+                    error = error[c_off:e_off]
+
+                    error_tokens[i][j] = token_language.add_node(error)
+                    # print('ERROR: %s' % error)
+
+                    phrase_diff += len(error) - len(correct_token)
 
             except Exception:
 
                 print('Warning: Failed to synthesize token for: %s' %
                       ''.join(correct_token))
 
-                valid_indices.remove(j)
+                valid_indices.remove(i)
+                continue
+
+            assert(phrase_diff == diff)
 
         return valid_indices
 
@@ -847,9 +1001,6 @@ class RuleList:
                                          token_language, tag_languages, KL=KL)
 
                 self.rule_dict[rule.name] = rule
-
-            # if line_count > 1:
-            #     break
 
     def get_rule(self, name):
 
