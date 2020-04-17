@@ -330,7 +330,7 @@ class TemplateMatch:
 def match_correct(rule: Rule,
                   db: Database, stdb: SortedTagDatabase,
                   max_token: int=100000, n_search: int=-1,
-                  n_max_out: int=200000, n_min_out: int=5000,
+                  n_max_out: int=250000, n_min_out: int=2500,
                   out_ratio: float=0.1, RS: RandomState=None,
                   pre_merge_threshold: int=10):
 
@@ -476,18 +476,16 @@ def _find_template_sentences(
 
         if isinstance(rule, CharacterRule):
 
-            if rule.match_form:
+            form_characters = np.load(db.get_file(n_partition, 'f_f_char'))
+            form_lengths = np.load(db.get_file(n_partition, 'f_f_len'))
 
-                characters = np.load(db.get_file(n_partition, 'f_f_char'))
-                lengths = np.load(db.get_file(n_partition, 'f_f_len'))
-
-            else:
-
-                characters = np.load(db.get_file(n_partition, 'f_t_char'))
-                lengths = np.load(db.get_file(n_partition, 'f_t_len'))
+            token_characters = np.load(db.get_file(n_partition, 'f_t_char'))
+            token_lengths = np.load(db.get_file(n_partition, 'f_t_len'))
 
             match_array = np.logical_and(
-                match_array, rule.match_characters(characters, lengths))
+                match_array, rule.match_characters(
+                    form_characters, form_lengths,
+                    token_characters, token_lengths))
 
         matches = TemplateMatch(
             tokens, tags, sentence_lengths, None, db_indices,

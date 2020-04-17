@@ -313,8 +313,6 @@ if __name__ == '__main__':
 
         util.mkdir_p(save_dir)
 
-    seed_perm = RS.permutation(1000)
-
     n_rule = -1
 
     for rule, idx in rl.iterate_rules(args.gen_rule):
@@ -325,8 +323,6 @@ if __name__ == '__main__':
         print(cfg['BREAK_LINE'])
 
         try:
-
-            RS_match = np.random.RandomState(seed=seed_perm[n_rule % 1000])
 
             matches = match.match_correct(rule, db, stdb, RS=RS)
             gen_error, gen_correct, gen_error_bounds, gen_correct_bounds, \

@@ -78,7 +78,7 @@ class Dataset:
     def _get_rules(self):
 
         self.rules = np.unique(self.df[DS_PARAMS['col_rules']].values)
-        self.rule_type = type(self.rules[0])
+        self.rule_type = type(self.rules[0]) if self.rules else str
         self.n_rules = len(self.rules)
 
         self.n_rule_sentences = []
@@ -163,7 +163,8 @@ class Dataset:
         rule = self.rule_type(rule)
 
         if rule not in set(self.rules):
-            raise ValueError('ERROR: rule %s not found in Dataset' % rule)
+            print('ERROR: rule %s not found in Dataset' % rule)
+            return
 
         rule_data = self.df.loc[self.df[DS_PARAMS['col_rules']] == rule]
 
@@ -205,7 +206,7 @@ class Dataset:
                         correct_bounds[0]:correct_bounds[1]]), 'green') \
                     + ''.join(correct[correct_bounds[1]:])
 
-                print('\tE: %s\n\tC: %s' %
+                print('\tError: %s\n\tCorrect: %s' %
                       (highlighted_error, highlighted_correct))
 
     def split(self, train_ratio=0.9, dev_ratio=0.05,

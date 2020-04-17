@@ -67,7 +67,7 @@ To setup and run the data synthesis pipeline the following scripts must be execu
     ```console
     python train_model.py --ds_load_dir del_split --ds_name_train syn_train --ds_name_dev syn_dev --ds_name_test syn_test --command all --model_arch fconv_jp_mini --model_save_dir del
     ```
-2. Run the script *classify_dataset.py* from the root directory
+2. Run the script *gen_model_output.py* from the root directory
   - Requires a trained FConv model instance (e.g. a model saved in *./models/model/* would require the flag '--model_load_dir model')
   - Also takes as input either a saved Dataset instance (with flag '--command ds_generate') or a saved file instance (with flag '--command file_generate')
     - Input files can be either paired or unpaired and may also be pre-tokenized
@@ -90,7 +90,7 @@ To setup and run the data synthesis pipeline the following scripts must be execu
     python import_dataset.py --ds_dir teacher --ds_name test --ds_action create --file_dir data/test_corpora --file_name teacher.txt --annotated True --sentence_delimiter "\t"
     ```
 
-2. Run the script *clasify_dataset.py* from the root directory
+2. Run the script *classify_dataset.py* from the root directory
   - Requires an existing Dataset instance and a rule file
   - This assigns rule labels to the correct/error phrase pairs of the Dataset according to which rules of the rule file each pair is matched by
   - This also displays rule coverage (e.g. the number of sentence pairs/unique error phrases covered by each rule)
