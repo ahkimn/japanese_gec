@@ -13,7 +13,8 @@ VALID_COMMANDS = ['rules',
                   'sample',
                   'subrules',
                   'eval',
-                  'exit']
+                  'exit',
+                  'index']
 
 if __name__ == '__main__':
 
@@ -49,9 +50,10 @@ if __name__ == '__main__':
 
     print('Commands:')
     print('\teval: Evaluate model performance on a rule')
+    print('\tindex: Retrieve data at a specific index of the Dataset')
     print('\tsample: Sample a rule')
-    print('\trules: Show statistics for all rules')
     print('\tsubrules: Show subrule statistics for a particular rule')
+    print('\trules: Show statistics for all rules')
     print('\texit: Exit script')
 
     print(cfg['BREAK_LINE'])
@@ -95,6 +97,12 @@ if __name__ == '__main__':
             print()
 
             DS.print_subrule_stats(rule)
+
+        elif command == 'index':
+
+            idx = input('Please enter index to retrieve: ')
+            print()
+            DS.get_df_index(int(idx))
 
         else:
 
