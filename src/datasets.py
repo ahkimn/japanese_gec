@@ -78,7 +78,7 @@ class Dataset:
     def _get_rules(self):
 
         self.rules = np.unique(self.df[DS_PARAMS['col_rules']].values)
-        self.rule_type = type(self.rules[0]) if self.rules else str
+        self.rule_type = type(self.rules[0]) if len(self.rules) > 0 else str
         self.n_rules = len(self.rules)
 
         self.n_rule_sentences = []
@@ -155,8 +155,38 @@ class Dataset:
 
             print('%d | %d' % (subrule, count))
 
-    def sample_rule_data(self, rule: str='', n_per_subrule: int=5,
-                         RS: RandomState=None):
+    def get_df_index(self, idx):
+
+        data = self.df.iloc[idx]
+        correct = str_list(data[DS_PARAMS['col_correct']])
+        error = str_list(data[DS_PARAMS['col_error']])
+
+        correct_bounds = str_list(
+            data[DS_PARAMS['col_correct_bounds']])
+        error_bounds = str_list(data[DS_PARAMS['col_error_bounds']])
+
+        highlighted_error = ''.join(error[:error_bounds[0]]) \
+            + colored(''.join(error[
+                error_bounds[0]:error_bounds[1]]), 'red') \
+            + ''.join(error[error_bounds[1]:])
+
+        highlighted_correct = ''.join(correct[:correct_bounds[0]]) \
+            + colored(''.join(correct[
+                correct_bounds[0]:correct_bounds[1]]), 'green') \
+            + ''.join(correct[correct_bounds[1]:])
+
+        rule = data[DS_PARAMS['col_rules']]
+        subrule = data[DS_PARAMS['col_subrules']]
+
+        if rule == '':
+            rule = 'NONE'
+
+        print('\tError: %s\n\tCorrect: %s' %
+              (highlighted_error, highlighted_correct))
+
+        print('\tRule: %s\tSubrule: %d' % (rule, subrule))
+
+    def sample_rule_data(self, rule: str='', n_per_subrule: int=5):
 
         self._setup()
 
@@ -166,28 +196,34 @@ class Dataset:
             print('ERROR: rule %s not found in Dataset' % rule)
             return
 
-        rule_data = self.df.loc[self.df[DS_PARAMS['col_rules']] == rule]
+        rule_indices = np.where(self.df[DS_PARAMS['col_rules']] == rule)[0]
+        rule_data = self.df.iloc[rule_indices]
+
+        # rule_data = self.df.loc[self.df[DS_PARAMS['col_rules']] == rule]
 
         subrules = self.subrules[rule]
         n_subrules = self.n_subrules[rule]
 
         for i in range(n_subrules):
 
-            subrule_data = \
-                rule_data.loc[rule_data[DS_PARAMS['col_subrules']] ==
-                              subrules[i]]
+            subrule_indices = np.where(
+                rule_data[DS_PARAMS['col_subrules']] == subrules[i])[0]
+
+            subrule_data = rule_data.iloc[subrule_indices]
 
             print('\n\tSample sentences for sub-rule %d of %d\n'
                   % (i + 1, n_subrules))
 
             n_subrule = subrule_data.shape[0]
-            perm = np.arange(n_subrule) if RS is None \
-                else RS.permutation(n_subrule)
+            perm = np.random.permutation(n_subrule)
             perm = perm[:n_per_subrule]
+
+            df_indices = rule_indices[subrule_indices]
 
             for j in perm:
 
                 data = subrule_data.iloc[j]
+                df_idx = df_indices[j]
 
                 correct = str_list(data[DS_PARAMS['col_correct']])
                 error = str_list(data[DS_PARAMS['col_error']])
@@ -206,8 +242,8 @@ class Dataset:
                         correct_bounds[0]:correct_bounds[1]]), 'green') \
                     + ''.join(correct[correct_bounds[1]:])
 
-                print('\tError: %s\n\tCorrect: %s' %
-                      (highlighted_error, highlighted_correct))
+                print('\tError %d: %s\n\tCorrect %d: %s' %
+                      (df_idx, highlighted_error, df_idx, highlighted_correct))
 
     def split(self, train_ratio=0.9, dev_ratio=0.05,
               max_per_rule=50000, min_per_rule=200, RS: RandomState=None):
