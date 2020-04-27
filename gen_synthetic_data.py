@@ -350,7 +350,7 @@ if __name__ == '__main__':
 
             print('Rule: %s' % str(rule))
 
-            DS.sample_rule_data(rule.name, RS=RS)
+            DS.sample_rule_data(rule.name)
 
             validate = ''
 

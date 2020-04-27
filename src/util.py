@@ -291,14 +291,19 @@ def search_2d_masked(arr, vals, mask):
     n_roll = n_indices - len_template + 1
     ret = np.zeros((n_match, n_roll), dtype=np.bool)
 
+    non_pad = (arr != 0)
+
     for i in range(n_roll):
 
         match = np.ones(n_match, dtype=np.bool)
 
         for j in range(len_template):
 
+            match = np.logical_and(match, (non_pad[:, i + j]))
+
             if mask[j]:
                 match = np.logical_and(match, (arr[:, i + j] == vals[j]))
+
         ret[:, i] = match
 
     return ret

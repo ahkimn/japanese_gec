@@ -329,9 +329,9 @@ class TemplateMatch:
 
 def match_correct(rule: Rule,
                   db: Database, stdb: SortedTagDatabase,
-                  max_token: int=100000, n_search: int=-1,
-                  n_max_out: int=250000, n_min_out: int=2500,
-                  out_ratio: float=0.1, RS: RandomState=None,
+                  max_token: int=50000, n_search: int=-1,
+                  n_max_out: int=100000, n_min_out: int=1000,
+                  out_ratio: float=0.08, RS: RandomState=None,
                   pre_merge_threshold: int=10):
 
     print("\tFinding potential substitute tokens...")
@@ -473,6 +473,9 @@ def _find_template_sentences(
                     match_array, util.search_template(
                         tags[:, :, i], np.argwhere(index_mask == 1),
                         index_tags, rule.n_correct_tokens))
+
+        print('\tNumber of phrases matching requisite syntactic tags: %d'
+              % np.sum(match_array))
 
         if isinstance(rule, CharacterRule):
 

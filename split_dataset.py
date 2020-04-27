@@ -78,6 +78,12 @@ if __name__ == '__main__':
             rule in the dataset (total over train/dev/test sets',
         required=False)
 
+    parser.add_argument(
+        '--min_per_rule', metavar='MIN_PER_RULE', type=float,
+        default=1000, help='minimum number of pairs to sample per each \
+            rule in the dataset (total over train/dev/test sets',
+        required=False)
+
     args = parser.parse_args()
     ds_load_path = os.path.join(DIRECTORIES['datasets'],
                                 args.ds_load_dir, '%s.%s' %
@@ -112,7 +118,8 @@ if __name__ == '__main__':
 
     DS_train, DS_dev, DS_test = \
         DS.split(args.ds_split_train, args.ds_split_dev,
-                 max_per_rule=args.max_per_rule)
+                 max_per_rule=args.max_per_rule,
+                 min_per_rule=args.min_per_rule)
 
     DS_train.save(ds_save_train)
     DS_dev.save(ds_save_dev)

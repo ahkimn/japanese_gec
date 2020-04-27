@@ -31,6 +31,8 @@ cfg = config.parse()
 DS_PARAMS = cfg['dataset_params']
 SAVE_PARAMS = DS_PARAMS['save_names']
 
+PUNCTUATION = {'！', '？', '!', '?'}
+
 
 class Dataset:
 
@@ -67,6 +69,7 @@ class Dataset:
 
             return
 
+        self.df.fillna('', inplace=True)
         self._get_rules()
 
         for rule in self.rules:
@@ -155,9 +158,18 @@ class Dataset:
 
             print('%d | %d' % (subrule, count))
 
-    def get_df_index(self, idx):
+    def get_df_index(self, idx, columns):
 
         data = self.df.iloc[idx]
+
+        rule = data[DS_PARAMS['col_rules']]
+        subrule = data[DS_PARAMS['col_subrules']]
+
+        if rule == '':
+            rule = 'NONE'
+
+        print('\tRule: %s\tSubrule: %d' % (rule, subrule))
+
         correct = str_list(data[DS_PARAMS['col_correct']])
         error = str_list(data[DS_PARAMS['col_error']])
 
@@ -175,16 +187,25 @@ class Dataset:
                 correct_bounds[0]:correct_bounds[1]]), 'green') \
             + ''.join(correct[correct_bounds[1]:])
 
-        rule = data[DS_PARAMS['col_rules']]
-        subrule = data[DS_PARAMS['col_subrules']]
-
-        if rule == '':
-            rule = 'NONE'
-
         print('\tError: %s\n\tCorrect: %s' %
               (highlighted_error, highlighted_correct))
 
-        print('\tRule: %s\tSubrule: %d' % (rule, subrule))
+        if columns == '':
+            return
+
+        columns = columns.split(',')
+
+        for col in columns:
+            if col not in self.df.columns:
+                print('Error: %s not present in Dataset' % col)
+                continue
+
+            model = str_list(data[col])
+            highlighted_model = ''.join(model[:correct_bounds[0]]) \
+                + colored(''.join(model[
+                    correct_bounds[0]:correct_bounds[1]]), 'cyan') \
+                + ''.join(model[correct_bounds[1]:])
+            print('\t%s: %s' % (col, highlighted_model))
 
     def sample_rule_data(self, rule: str='', n_per_subrule: int=5):
 
@@ -246,7 +267,7 @@ class Dataset:
                       (df_idx, highlighted_error, df_idx, highlighted_correct))
 
     def split(self, train_ratio=0.9, dev_ratio=0.05,
-              max_per_rule=50000, min_per_rule=200, RS: RandomState=None):
+              max_per_rule=50000, min_per_rule=500, RS: RandomState=None):
 
         self._setup()
 
@@ -294,7 +315,7 @@ class Dataset:
                 subrule = subrules[j]
                 n_sample_subrule = subrule_sample_counts[j]
 
-                print('\tSubrule %d: %d pairs' % (subrule, n_sample_subrule))
+                # print('\tSubrule %d: %d pairs' % (subrule, n_sample_subrule))
 
                 if n_sample_subrule == 0:
                     continue
@@ -302,8 +323,8 @@ class Dataset:
                 n_sr_train, n_sr_dev, n_sr_test = sample.split_subrule_count(
                     n_sample_subrule, train_ratio, dev_ratio)
 
-                print('\t  Split: %d, %d, %d' %
-                      (n_sr_train, n_sr_dev, n_sr_test))
+                # print('\t  Split: %d, %d, %d' %
+                #       (n_sr_train, n_sr_dev, n_sr_test))
 
                 subrule_indices = np.where(
                     (rule_data[DS_PARAMS['col_subrules']] == subrule))[0]
@@ -312,7 +333,7 @@ class Dataset:
                 assert(subrule_counts[j] +
                        n_sample_subrule == len(subrule_indices))
 
-                perm = RS.permutation(subrule_counts[j])
+                perm = RS.permutation(self.n_subrule_sentences[rule][j])
 
                 sr_train = subrule_indices[perm[:n_sr_train]]
                 sr_dev = subrule_indices[
@@ -346,10 +367,19 @@ class Dataset:
     def write(self, directory: str, token_delimiter: str,
               data_delimiter: str, include_tags: list,
               separation: str, max_per_rule=-1,
-              save_prefix: str=''):
+              save_prefix: str='', force_punctuation: str=None):
 
         # converted = self._convert_columns()
         self._setup()
+
+        def fix_punctuation(l):
+
+            if force_punctuation is None or l[-1] in PUNCTUATION:
+                return l
+
+            else:
+                l.append(force_punctuation)
+                return l
 
         # if converted:
         #     self.save_default()
@@ -385,12 +415,19 @@ class Dataset:
             file_error = open(os.path.join(
                 directory, '%s.%s' % (save_prefix, e_suffix)), 'w+')
 
+            print('\tWriting all sentences...')
+
             for i in range(self.n_sentences):
+
+                if i % 100000 == 0:
+                    print('\t\t%d/%d sentences' % (i, self.n_sentences))
 
                 data = self.df.iloc[i]
 
-                correct = str_list(data[DS_PARAMS['col_correct']])
-                error = str_list(data[DS_PARAMS['col_error']])
+                correct = fix_punctuation(
+                    str_list(data[DS_PARAMS['col_correct']]))
+                error = fix_punctuation(
+                    str_list(data[DS_PARAMS['col_error']]))
 
                 correct = token_delimiter.join(correct)
                 error = token_delimiter.join(error)
@@ -463,8 +500,10 @@ class Dataset:
 
                     data = subrule_data.iloc[k]
 
-                    correct = str_list(data[DS_PARAMS['col_correct']])
-                    error = str_list(data[DS_PARAMS['col_error']])
+                    correct = fix_punctuation(
+                        str_list(data[DS_PARAMS['col_correct']]))
+                    error = fix_punctuation(
+                        str_list(data[DS_PARAMS['col_error']]))
 
                     correct = token_delimiter.join(correct)
                     error = token_delimiter.join(error)
@@ -601,12 +640,51 @@ class Dataset:
 
         return cls(data=data)
 
-    def eval(self, column: str, full_sentence=False):
+    def eval_index(self, idx: list, column: list, correct_column: str,
+                   full_sentence=False):
+
+        self._setup()
+
+        i_data = self.df.iloc[idx]
+        df_correct = str_list(i_data[correct_column])
+
+        correct_bounds = str_list(i_data[
+            DS_PARAMS['col_correct_bounds']])
+
+        upper_bound = correct_bounds[1]
+        lower_bound = correct_bounds[0]
+
+        df_phrase_correct = ''.join(
+            df_correct[lower_bound:upper_bound])
+
+        model_correct = i_data[column]
+
+        sentence_correct = (''.join(df_correct) ==
+                            ''.join(model_correct))
+
+        # Use bounds if bounds are provided and user specifies to use
+        #   phrase-level accuracy
+        if not sentence_correct and not full_sentence and \
+                correct_bounds != []:
+
+            model_correct = ''.join(
+                model_correct[lower_bound:upper_bound])
+            sentence_correct = \
+                (df_phrase_correct == model_correct)
+
+        return sentence_correct
+
+    def eval(self, column: str, correct_column: str='', full_sentence=False):
 
         self._setup()
 
         if column not in self.df.columns:
             raise ValueError('column %s not present' % column)
+
+        if correct_column == '':
+            correct_column = DS_PARAMS['col_correct']
+        elif correct_column not in self.df.columns:
+            raise ValueError('column %s not present' % correct_column)
 
         in_rule_correct = []
         in_rule_incorrect = []
@@ -614,6 +692,7 @@ class Dataset:
         out_of_rule_incorrect = []
 
         rule_values = self.df[DS_PARAMS['col_rules']].values
+        parsed = 0
 
         for rule in self.rules:
 
@@ -621,29 +700,14 @@ class Dataset:
 
             for idx in indices:
 
-                i_data = self.df.iloc[idx]
+                parsed += 1
 
-                model_correct = i_data[column]
-                df_correct = i_data[DS_PARAMS['col_correct']]
-                correct_bounds = i_data[DS_PARAMS['col_correct_bounds']]
+                if parsed % 1000 == 0:
+                    print('\tParsed: %d/%d sentences: ' %
+                          (parsed, self.n_sentences))
 
-                sentence_correct = (''.join(df_correct) ==
-                                    ''.join(model_correct))
-
-                # Use bounds if bounds are provided and user specifies to use
-                #   phrase-level accuracy
-                if not sentence_correct and not full_sentence and \
-                        correct_bounds != []:
-
-                    if len(model_correct) >= correct_bounds[1]:
-
-                        df_correct_phrase = ''.join(
-                            df_correct[correct_bounds[0]:correct_bounds[1]])
-                        model_correct_phrase = ''.join(
-                            model_correct[correct_bounds[0]:correct_bounds[1]])
-
-                        sentence_correct = \
-                            (df_correct_phrase == model_correct_phrase)
+                sentence_correct = self.eval_index(
+                    idx, column, correct_column, full_sentence)
 
                 if sentence_correct:
 
@@ -673,8 +737,10 @@ class Dataset:
         out_correct = out_correct.difference(
             in_correct).intersection(out_total)
 
-        print('\n\tIn rule accuracy: %d / %d' % (len(in_correct), len(in_total)))
-        print('\tOut of rule accuracy: %d / %d' % (len(out_correct), len(out_total)))
+        print('\n\tIn rule accuracy: %d / %d' %
+              (len(in_correct), len(in_total)))
+        print('\tOut of rule accuracy: %d / %d' %
+              (len(out_correct), len(out_total)))
 
     def classify(self, character_language: Language, token_language: Language,
                  tag_languages: list, RL: RuleList, KL: KanaList,
@@ -893,7 +959,7 @@ class Dataset:
 
         return DB
 
-    def _iterate_sentences(self, column: str, batch_size=1000):
+    def _iterate_sentences(self, column: str, batch_size=5000):
 
         n_batch = math.ceil(self.n_sentences / batch_size)
         n_offset = 0

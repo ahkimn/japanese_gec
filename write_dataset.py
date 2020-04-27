@@ -62,6 +62,12 @@ if __name__ == '__main__':
         help='prefix of saved files if no separation is used',
         default='')
 
+    parser.add_argument(
+        '--force_punctuation', metavar='SAVE_PREFIX', type=str,
+        help='if not None, force last token of sentence to be this \
+            token',
+        default=None)
+
     args = parser.parse_args()
     ds_load_file = os.path.join(DIRECTORIES['datasets'],
                                 args.ds_load_dir, '%s.%s' %
@@ -74,4 +80,5 @@ if __name__ == '__main__':
     DS.write(write_dir, token_delimiter=args.token_delimiter,
              data_delimiter=args.data_delimiter, include_tags=[],
              separation=args.write_separation, max_per_rule=args.max_per_rule,
-             save_prefix=args.save_prefix)
+             save_prefix=args.save_prefix,
+             force_punctuation=args.force_punctuation)
