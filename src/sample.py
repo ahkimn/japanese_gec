@@ -124,7 +124,7 @@ def split_subrule_count(n: int, train_ratio: float, dev_ratio: float):
 
 def balanced_rule_sample(rule_names: list, rule_counts: list,
                          max_per_rule: int=-1, min_per_rule: int=0,
-                         sample_function=None):
+                         sample_function=None, force_sample: bool=True):
     """
     Generate sentence counts per rule that constitute a representative
         sample of a dataset
@@ -159,7 +159,7 @@ def balanced_rule_sample(rule_names: list, rule_counts: list,
 
         count = min(rule_counts[i], max_per_rule)
 
-        if count >= min_per_rule:
+        if count >= min_per_rule or force_sample:
 
             sample_counts[i] = count
 
@@ -171,7 +171,7 @@ def balanced_rule_sample(rule_names: list, rule_counts: list,
     return sample_counts
 
 
-def linear_sampler(count, floor, ratio=0.1):
+def linear_sampler(count, floor, ratio=0.25):
 
     if count < floor:
 

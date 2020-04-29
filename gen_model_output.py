@@ -168,8 +168,14 @@ if __name__ == '__main__':
     if output_file is None:
         output_file = args.model_load_dir
 
-    output_file = os.path.join(DIRECTORIES['model_output'],
+    output_model_file = os.path.join(DIRECTORIES['model_output'],
                                '%s.%s' % (output_file, args.output_ext))
+    output_correct_file = os.path.join(DIRECTORIES['model_output'],
+                                       '%s_correct.%s' %
+                                       (output_file, args.output_ext))
+    output_error_file = os.path.join(DIRECTORIES['model_output'],
+                                     '%s_error.%s' %
+                                     (output_file, args.output_ext))
 
     if command == 'ds_generate':
 
@@ -200,7 +206,7 @@ if __name__ == '__main__':
 
         assert(os.path.isfile(load_file))
 
-        error_sentences, correct_sentences = convert.process_file(
+        error_sentences, correct_sentences, _, _ = convert.process_file(
             load_file,
             token_delimiter=args.token_delimiter,
             sentence_delimiter=args.sentence_delimiter,
@@ -267,14 +273,11 @@ if __name__ == '__main__':
 
     assert(os.path.isfile(gen_file))
 
-    gen_sentences, _ = convert.parse_fairseq_output(gen_file)
+    gen_sentences, _, crt_sentences, err_sentences = \
+        convert.parse_fairseq_output(gen_file)
 
     print('Saving generated data to: %s' % output_file)
 
-    if output_file is not None:
-
-        util.mkdir_p(output_file, file=True)
-
-        f_out = open(output_file, 'w+')
-        f_out.writelines([s + os.linesep for s in gen_sentences])
-        f_out.close()
+    convert.write_file(output_model_file, gen_sentences)
+    convert.write_file(output_error_file, err_sentences)
+    convert.write_file(output_correct_file, crt_sentences)

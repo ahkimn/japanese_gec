@@ -15,11 +15,17 @@ def parse_fairseq_output(input_file: str, output_delimiter: str=' ',
 
     f_in = open(input_file, 'r')
 
+    correct_header = re.compile(r'T-\d+')
+    error_header = re.compile(r'S-\d+')
+
     mdl_header = re.compile(r'H-\d+')
     multispace = re.compile(r'\s+')
 
     data = f_in.readlines()
     f_in.close()
+
+    correct_data = dict()
+    error_data = dict()
 
     mdl_data = dict()
     mdl_p = dict()
@@ -32,6 +38,12 @@ def parse_fairseq_output(input_file: str, output_delimiter: str=' ',
 
         header = values[0]
 
+        if correct_header.match(header) is not None:
+            correct_data[int(header[2:])] = values[1:]
+
+        if error_header.match(header) is not None:
+            error_data[int(header[2:])] = values[1:]
+
         if mdl_header.match(header) is not None:
             mdl_data[int(header[2:])] = values[2:]
             mdl_p[int(header[2:])] = float(values[1])
@@ -40,15 +52,22 @@ def parse_fairseq_output(input_file: str, output_delimiter: str=' ',
 
     print('Number of output sentences found: %d' % n_output)
 
-    output_sentences = [''] * n_output
-    output_p = [0] * n_output
+    model_sentences = [''] * n_output
+    model_p = [0] * n_output
+
+    correct_sentences = [''] * n_output
+    error_sentences = [''] * n_output
 
     for i in range(n_output):
 
-        output_sentences[i] = output_delimiter.join(mdl_data[i])
-        output_p[i] = mdl_p[i]
+        model_sentences[i] = output_delimiter.join(mdl_data[i])
+        model_p[i] = mdl_p[i]
 
-    return output_sentences, output_p
+        correct_sentences[i] = output_delimiter.join(correct_data[i])
+        error_sentences[i] = output_delimiter.join(error_data[i])
+
+    return model_sentences, model_p, \
+        correct_sentences, error_sentences
 
 
 def process_file(
@@ -84,6 +103,7 @@ def process_file(
 
     correct_data = []
     error_data = []
+    error_bounds, correct_bounds = [], []
 
     n_lines = 0
 
@@ -123,24 +143,35 @@ def process_file(
 
         elif len(line_sentences) == 1:
 
+            len_1 = len(line_sentences[0])
+
             error_data.append(line_sentences[0])
             correct_data.append([''])
+            error_bounds.append([0, len_1])
+            correct_bounds.append([0, 0])
 
         elif len(line_sentences) == 2:
+
+            len_1 = len(line_sentences[0])
+            len_2 = len(line_sentences[1])
 
             if error_first:
                 error_data.append(line_sentences[0])
                 correct_data.append(line_sentences[1])
+                error_bounds.append([0, len_1])
+                correct_bounds.append([0, len_2])
 
             else:
                 error_data.append(line_sentences[1])
                 correct_data.append(line_sentences[0])
+                error_bounds.append([0, len_2])
+                correct_bounds.append([0, len_1])
 
         else:
             raise ValueError(
                 'Line: %d contains more than two sentences' % n_lines)
 
-    return error_data, correct_data
+    return error_data, correct_data, error_bounds, correct_bounds
 
 
 def write_output_file(file_path, sentence_lists: list,
@@ -261,7 +292,7 @@ def process_annotated_file(
     input_file: str, sentence_delimiter: str=',',
     error_delimiters: list=DS_PARAMS['error_delimiters'],
     correct_delimiters: list=DS_PARAMS['correct_delimiters'],
-    error_first: bool=True, raise_on_error: bool=False,
+    error_first: bool=True, raise_on_error: bool=True,
     ignore_punctuation: bool=True, punctuation_list: list=['。']
 ):
     """
@@ -411,3 +442,14 @@ def process_annotated_file(
     f_in.close()
 
     return source_sentences, target_sentences, source_bounds, target_bounds
+
+
+def write_file(output_file, sentences):
+
+    if output_file is not None:
+
+        util.mkdir_p(output_file, file=True)
+
+        f_out = open(output_file, 'w+')
+        f_out.writelines([s + os.linesep for s in sentences])
+        f_out.close()

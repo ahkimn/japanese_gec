@@ -124,15 +124,13 @@ if __name__ == '__main__':
 
     else:
 
-        err_sentences, crt_sentences = \
+        err_sentences, crt_sentences, err_bounds, crt_bounds = \
             convert.process_file(
                 load_file,
                 token_delimiter=args.token_delimiter,
                 sentence_delimiter=args.sentence_delimiter,
                 tokenized=args.tokenized,
                 error_first=args.error_first)
-
-        err_bounds, crt_bounds = None, None
 
     assert(os.path.isfile(load_file))
 
@@ -171,7 +169,7 @@ if __name__ == '__main__':
     response = None
     while response != 'y' and response != 'n':
         response = input('Save dataset (y/n): ').lower()
-    
+
     if response == 'y':
         DS.save(ds_file)
 

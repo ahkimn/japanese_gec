@@ -69,6 +69,8 @@ if __name__ == '__main__':
         if command == 'eval':
 
             column = input('Please enter column name to evaluate: ')
+            correct_column = input('Please enter column name of correct data' +
+                                   '\n\tFor the default use empty string: ')
 
             response = None
             while response != 'y' and response != 'n':
@@ -76,7 +78,7 @@ if __name__ == '__main__':
                     input('Evaluate on full sentence accuracy (y/n): ').lower()
             print()
             full_sentence = True if response == 'y' else False
-            DS.eval(column, full_sentence)
+            DS.eval(column, correct_column, full_sentence)
 
         if command == 'rules':
 
@@ -85,8 +87,17 @@ if __name__ == '__main__':
         elif command == 'sample':
 
             rule = input('Please enter rule to sample from: ')
-            n_sample = int(input(
-                'Please number desired number of samples per subrule: '))
+
+            n_sample = None
+
+            while n_sample is None:
+                n = input(
+                    'Please number desired number of samples per subrule: ')
+                try:
+                    n_sample = int(n)
+
+                except ValueError:
+                    continue
             print()
 
             DS.sample_rule_data(rule, n_per_subrule=n_sample)
@@ -100,12 +111,29 @@ if __name__ == '__main__':
 
         elif command == 'index':
 
-            idx = input('Please enter index to retrieve: ')
+            idx = None
+            columns = ''
+
+            while idx is None:
+
+                n = input('Please enter index (0 to %d) to retrieve: '
+                          % (DS.n_sentences - 1))
+
+                try:
+                    n = int(n)
+                    if n < DS.n_sentences and n >= 0:
+                        idx = n
+                    columns = input(
+                        'Please enter any additional columns to include: ')
+
+                except ValueError:
+                    continue
             print()
-            DS.get_df_index(int(idx))
+            DS.get_df_index(idx, columns)
 
         else:
 
+            print('Exiting...')
             status = False
 
         print()

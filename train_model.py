@@ -5,7 +5,7 @@ import shutil
 
 from src import config
 from src import util
-from src import architectures
+# from src import architectures
 from src.datasets import Dataset
 from src.util import str_bool
 
@@ -99,6 +99,10 @@ if __name__ == '__main__':
         '--batch_size', metavar='BATCH_SIZE', default=32, type=str,
         help='batch size to use when training', required=False)
 
+    parser.add_argument(
+        '--n_epoch', metavar='N_EPOCH', default=30, type=int,
+        help='number of training epochs', required=False)
+
     # ====================================================
     #               Other parameters
     # ====================================================
@@ -113,6 +117,12 @@ if __name__ == '__main__':
         help='one of [\'write\', \'preprocess\', \'train\', \'clean\', \
             or \'all\']. Determines which operation to run',
         required=True)
+
+    parser.add_argument(
+        '--force_punctuation', metavar='SAVE_PREFIX', type=str,
+        help='if not None, force last token of sentence to be this \
+            token',
+        default=None)
 
     args = parser.parse_args()
     command = args.command.lower()
@@ -154,7 +164,7 @@ if __name__ == '__main__':
             DS = Dataset.load(ds_load_file)
             DS.write(write_dir, token_delimiter=' ', data_delimiter='',
                      include_tags=[], separation='none', max_per_rule=-1,
-                     save_prefix=f)
+                     save_prefix=f, force_punctuation=args.force_punctuation)
 
     if command == 'preprocess' or command == 'all':
 
@@ -171,7 +181,9 @@ if __name__ == '__main__':
              '--validpref', w_names[1],
              '--testpref', w_names[2],
              '--destdir', prep_dir,
-             '--workers', str(4)],
+             '--workers', str(4),
+             '--nwordssrc', str(args.n_words_model),
+             '--nwordstgt', str(args.n_words_model)],
             stdout=subprocess.PIPE)
 
         output = prep.communicate()[0]
@@ -188,13 +200,13 @@ if __name__ == '__main__':
                 raise ValueError('Model directory not empty')
 
         t_args = ['fairseq-train', prep_dir,
-                  '--lr', str(0.1),
-                  '--clip-norm', str(0.1),
-                  '--dropout', str(0.1),
-                  '--max-tokens', str(args.n_words_model),
+                  '--max-tokens', str(5000),
                   '--save-dir', model_save_dir,
                   '--batch-size', str(args.batch_size),
-                  '--arch', args.model_arch]
+                  '--arch', args.model_arch,
+                  '--max-epoch', str(args.n_epoch),
+                  '--lr', str(0.1),
+                  '--clip-norm', str(0.1)]
 
         if args.cpu:
             t_args.append('--cpu')
@@ -204,6 +216,8 @@ if __name__ == '__main__':
 
         if args.fp16:
             t_args.append('--fp16')
+
+        print(' '.join(t_args))
 
         train = subprocess.Popen(t_args,
                                  stdout=subprocess.PIPE)
